@@ -215,8 +215,13 @@ final class DCReaderViewModel: ObservableObject {
             previousSelection = currentSelection
         }
 
-        if let coords = pendingNavigationCoordsBySpineIndex.removeValue(forKey: currentSelection),
-           let chapterViewModel = chapterViewModels[currentSelection] {
+        // Only consume the pending coord when the chapter viewModel is already available.
+        // If the chapter has not yet registered its viewModel (first-time load), the coord
+        // stays in pendingNavigationCoordsBySpineIndex so that restoreInitialPositionIfNeeded
+        // can consume it once the WebView finishes loading.
+        if let chapterViewModel = chapterViewModels[currentSelection],
+           let coords = pendingNavigationCoordsBySpineIndex[currentSelection] {
+            pendingNavigationCoordsBySpineIndex.removeValue(forKey: currentSelection)
             chapterViewModel.scrollToHighlight(coords: coords)
             return
         }

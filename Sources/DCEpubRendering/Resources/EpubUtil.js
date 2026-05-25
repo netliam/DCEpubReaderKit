@@ -14,6 +14,9 @@
     const SEL_LEN = 7;
     let isASearch = false;
     let searchString; // used by getPageFromCoords*
+
+    // Set to true to print navigation debug info to the Web Inspector console.
+    const NAV_DEBUG = false;
     
     // --------------------------------------------------
     // Environment helpers (no hard jQuery requirement)
@@ -103,13 +106,17 @@
     function scrollToFirstPage() { window.scrollTo(0, 0); }
 
     function scrollToCoordsHorizontal(mark) {
-        const page = Math.max(0, getPageFromCoords(mark) - 1);
+        // getPageFromCoords returns a 0-based page index; no adjustment needed.
+        const page = Math.max(0, getPageFromCoords(mark));
+        if (NAV_DEBUG) console.log('[Nav] scrollToCoordsHorizontal page=' + page + ' innerWidth=' + window.innerWidth + ' scrollTo=' + (window.innerWidth * page));
         window.scrollTo(window.innerWidth * page, 0);
         return page;
     }
 
     function scrollToCoordsVertical(mark) {
-        const page = Math.max(0, getPageFromCoordsVertical(mark) - 1);
+        // getPageFromCoordsVertical returns a 0-based page index; no adjustment needed.
+        const page = Math.max(0, getPageFromCoordsVertical(mark));
+        if (NAV_DEBUG) console.log('[Nav] scrollToCoordsVertical page=' + page + ' innerHeight=' + window.innerHeight + ' scrollTo=' + (window.innerHeight * page));
         window.scrollTo(0, window.innerHeight * page);
         return page;
     }
@@ -425,7 +432,9 @@
             while (node && !getNodeText(node).includes(searchString)) { node = node.nextSibling; leftOffset = offsetOf(node).left; }
             if (hasJQ && node) $(node).highlight(searchString);
         }
-        return parseInt((leftOffset / window.innerWidth), 10);
+        const page = parseInt((leftOffset / window.innerWidth), 10);
+        if (NAV_DEBUG) console.log('[Nav] getPageFromCoords leftOffset=' + leftOffset + ' innerWidth=' + window.innerWidth + ' page=' + page);
+        return page;
     }
     
     function getPageFromCoordsVertical(mark) {
@@ -440,8 +449,10 @@
             while (node && !getNodeText(node).includes(searchString)) { node = node.nextSibling; topOffset = offsetOf(node).top; }
             if (hasJQ && node) $(node).highlight(searchString);
         }
-        let page = parseInt((topOffset / window.innerHeight), 10);
-        if (page > 0) page -= 1;
+        // Returns the 0-based page index that contains this element.
+        // floor(topOffset / innerHeight) gives the page whose top edge is <= the element.
+        const page = Math.floor(topOffset / window.innerHeight);
+        if (NAV_DEBUG) console.log('[Nav] getPageFromCoordsVertical topOffset=' + topOffset + ' innerHeight=' + window.innerHeight + ' page=' + page);
         return page;
     }
     
