@@ -7,6 +7,16 @@
 
 import Foundation
 
+/// How a highlight is drawn: one of the Books highlight colors, or an underline.
+public enum DCHighlightStyle: String, Codable, Sendable, CaseIterable {
+    case yellow
+    case green
+    case blue
+    case pink
+    case purple
+    case underline
+}
+
 public struct DCHighlight: Codable, Sendable, Equatable {
 
     public enum MarkType: String, Codable, Sendable {
@@ -24,6 +34,8 @@ public struct DCHighlight: Codable, Sendable, Equatable {
     public let coords: String
     public var note: String
     public var chapterTitle: String
+    /// Color or underline. `nil` for highlights saved before styles existed; see `displayStyle`.
+    public var style: DCHighlightStyle?
     public let dateCreated: Double
     public var dateUpdated: Double
 
@@ -37,6 +49,7 @@ public struct DCHighlight: Codable, Sendable, Equatable {
         coords: String,
         note: String = "",
         chapterTitle: String = "",
+        style: DCHighlightStyle? = nil,
         dateCreated: Double = Date().timeIntervalSince1970,
         dateUpdated: Double = Date().timeIntervalSince1970
     ) {
@@ -49,7 +62,13 @@ public struct DCHighlight: Codable, Sendable, Equatable {
         self.coords = coords
         self.note = note
         self.chapterTitle = chapterTitle
+        self.style = style
         self.dateCreated = dateCreated
         self.dateUpdated = dateUpdated
+    }
+
+    /// The style to draw: the saved one, or yellow for highlights and underline for notes.
+    public var displayStyle: DCHighlightStyle {
+        style ?? (type == .note ? .underline : .yellow)
     }
 }

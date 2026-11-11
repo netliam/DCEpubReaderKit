@@ -55,6 +55,10 @@ extension DCChapterWebViewModel: DCWebViewRouterProtocol {
         onAction(.showNote(highlight: highlight))
     }
 
+    func searchBook(for text: String) {
+        onAction(.searchBook(query: text))
+    }
+
     func saveHighlight(_ highlight: DCHighlight) async {
         await readerContext.save(highlight: highlight)
     }

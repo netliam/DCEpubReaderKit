@@ -11,12 +11,10 @@ import DCEpubCore
 final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDelegate {
 
     private enum Constants {
-        static let selectionChanged = "selectionChanged"
         static let highlightTapped  = "highlightTapped"
     }
 
     var viewModel: DCWebViewModelProtocol!
-    var selectionMenuTask: Task<Void, Never>?
     /// Line focus effect, present while the setting is on (see `setLineFocus(enabled:appearance:style:)`).
     private(set) var lineFocus: DCLineFocusController?
 
@@ -37,8 +35,6 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
     }
 
     private func teardown() {
-        selectionMenuTask?.cancel()
-        configuration.userContentController.removeScriptMessageHandler(forName: Constants.selectionChanged)
         configuration.userContentController.removeScriptMessageHandler(forName: Constants.highlightTapped)
     }
 
@@ -58,7 +54,6 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
         // WKUserContentController retains its handlers strongly, so registering `self` directly
         // would keep every web view alive. The weak proxy lets `deinit` (and `teardown`) run.
         let handler = DCWeakScriptMessageHandler(target: self)
-        configuration.userContentController.add(handler, name: Constants.selectionChanged)
         configuration.userContentController.add(handler, name: Constants.highlightTapped)
     }
 
@@ -67,27 +62,10 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
         switch message.name {
-        case Constants.selectionChanged:
-            handleSelectionChanged(message.body)
         case Constants.highlightTapped:
             handleHighlightTapped(message.body)
         default:
             break
-        }
-    }
-
-    private func handleSelectionChanged(_ body: Any) {
-        selectionMenuTask?.cancel()
-        let selectedText = (body as? [String: Any])?["text"] as? String
-        guard let selectedText,
-              selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-            removeMenuItems()
-            return
-        }
-        selectionMenuTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 150_000_000)
-            guard Task.isCancelled == false else { return }
-            await self?.shoMenuInteraction()
         }
     }
 
@@ -140,15 +118,15 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
         vc.present(alert, animated: true)
     }
 
-    // MARK: - UIMenuController
+    // MARK: - Edit menu
 
-    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
-        if action == #selector(applyHightLight) ||
-            action == #selector(applyUnderline) {
-            return true
-        } else {
-            return false
-        }
+    /// Swaps the system edit menu for the Books-style selection menu (see `selectionMenuElements`).
+    override func buildMenu(with builder: UIMenuBuilder) {
+        super.buildMenu(with: builder)
+        guard builder.system == .context else { return }
+        let lookUp = Self.lookUpCommands(in: builder.menu(for: .lookup))
+        let elements = selectionMenuElements(systemLookUp: lookUp)
+        builder.replaceChildren(ofMenu: .root) { _ in elements }
     }
 
     override var canBecomeFirstResponder: Bool {
@@ -223,7 +201,7 @@ private final class DCWeakScriptMessageHandler: NSObject, WKScriptMessageHandler
 
 // MARK: - Responder chain helper
 
-private extension DCWebView {
+extension DCWebView {
     var parentViewController: UIViewController? {
         var responder: UIResponder? = self
         while let r = responder {

@@ -17,6 +17,8 @@ enum DCChapterViewAction {
     case navigateToNextChapter
     case navigateToPreviousChapter
     case showNote(highlight: DCHighlight)
+    /// Open the book search for this text.
+    case searchBook(query: String)
     /// Paged reader: the page on screen now belongs to `spineIndex`.
     case spineDidChange(spineIndex: Int)
     /// Size of the area a page is laid out in, for whole-book pagination.

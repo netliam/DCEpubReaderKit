@@ -28,7 +28,7 @@ final class RealmHelper: RealmHelperProtocol {
         }
         var config = Realm.Configuration(
             fileURL: realmFileURL,
-            schemaVersion: 1,
+            schemaVersion: 2,
             migrationBlock: { _, _ in },
             shouldCompactOnLaunch: {totalBytes, usedBytes in
                 // totalBytes refers to the size of the file on disk in bytes (data + free space)

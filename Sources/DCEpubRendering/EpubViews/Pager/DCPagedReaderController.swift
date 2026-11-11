@@ -107,6 +107,14 @@ final class DCPagedReaderController: UIViewController {
         tap.cancelsTouchesInView = false
         tap.delegate = self
         view.addGestureRecognizer(tap)
+
+        // Holding a finger down selects text; it mustn't also count as a tap when it lifts.
+        let press = UILongPressGestureRecognizer(target: nil, action: nil)
+        press.minimumPressDuration = 0.3
+        press.cancelsTouchesInView = false
+        press.delegate = self
+        view.addGestureRecognizer(press)
+        tap.require(toFail: press)
     }
 
     /// Taps near the left/right edge turn the page; a tap anywhere else toggles the reader controls.

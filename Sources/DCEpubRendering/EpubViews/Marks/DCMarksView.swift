@@ -65,7 +65,7 @@ struct DCMarksView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: iconName(for: highlight.type))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(iconColor(for: highlight))
                     .frame(width: 18)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -92,6 +92,12 @@ struct DCMarksView: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+    }
+
+    /// Highlights show their color; notes and bookmarks stay neutral.
+    private func iconColor(for highlight: DCHighlight) -> Color {
+        guard highlight.type == .highlight, let swatch = highlight.displayStyle.swatchColor else { return .secondary }
+        return Color(uiColor: swatch)
     }
 
     private func primaryText(for highlight: DCHighlight) -> String {

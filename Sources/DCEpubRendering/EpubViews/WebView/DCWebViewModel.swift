@@ -22,6 +22,10 @@ final class DCWebViewModel: DCWebViewModelProtocol {
         router.showNoote(highlight: highlight)
     }
 
+    func searchBook(for text: String) {
+        router.searchBook(for: text)
+    }
+
     func saveHighlight(_ highlight: DCHighlight) async {
         await router.saveHighlight(highlight)
     }

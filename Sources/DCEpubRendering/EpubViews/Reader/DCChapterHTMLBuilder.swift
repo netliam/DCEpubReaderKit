@@ -70,7 +70,10 @@ enum DCChapterHTMLBuilder {
     /// Text color and weight for the theme. The page background is drawn natively behind the
     /// (transparent) web view, so the page curl and the area around the text match.
     static func themeCSS(for appearance: DCReaderAppearance) -> String {
-        let highlightText = appearance.isDark ? "html .highlight-yellow, html .highlight_search { color: #000 !important; }" : ""
+        // Highlight colors are light, so their text stays dark in dark themes.
+        let highlightText = appearance.isDark
+            ? "html .highlight-yellow, html .highlight-green, html .highlight-blue, html .highlight-pink, html .highlight-purple, html .highlight_search { color: #000 !important; }"
+            : ""
         return """
         html, body, p, div, span, li, td, th, blockquote, h1, h2, h3, h4, h5, h6 {
             color: \(appearance.cssTextColor) !important;

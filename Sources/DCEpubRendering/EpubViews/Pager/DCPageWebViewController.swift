@@ -491,6 +491,10 @@ extension DCPageWebViewController {
         onAction(.showNote(highlight: highlight))
     }
 
+    func searchBook(for text: String) {
+        onAction(.searchBook(query: text))
+    }
+
     func saveHighlight(_ highlight: DCHighlight) async {
         await readerContext.save(highlight: highlight)
         delegate?.page(self, didSave: highlight)
@@ -523,6 +527,10 @@ private final class DCPageRouter: DCWebViewRouterProtocol {
 
     func showNoote(highlight: DCHighlight) {
         page?.showNote(highlight: highlight)
+    }
+
+    func searchBook(for text: String) {
+        page?.searchBook(for: text)
     }
 
     func saveHighlight(_ highlight: DCHighlight) async {

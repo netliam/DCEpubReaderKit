@@ -184,12 +184,13 @@ html .highlight-green {background:#C0ED72}
 html .highlight-blue {background:#ADD8FF}
 html .highlight_search {background:#ADD8FF}
 html .highlight-pink {background:#FFB0CA}
+html .highlight-purple {background:#D6B8F5}
 html .highlight-underline {
     text-decoration: none;
     border-bottom: 2px solid #F02814;
 }
 
-html .highlight-yellow, html .highlight-green, html .highlight-blue, html .highlight_search, html .highlight-pink, span.epub-media-overlay-playing {
+html .highlight-yellow, html .highlight-green, html .highlight-blue, html .highlight_search, html .highlight-pink, html .highlight-purple, span.epub-media-overlay-playing {
     border-radius: 3px;
     padding: 0 2px;
     margin: 0 -2px;
@@ -236,6 +237,7 @@ html.nightMode .highlight-green {background:rgba(192, 237, 114, 0.9)}
 html.nightMode .highlight-blue {background:rgba(173, 216, 255, 0.9)}
 html.nightMode .highlight_search {background:rgba(173, 216, 255, 0.9)}
 html.nightMode .highlight-pink {background:rgba(255, 176, 202, 0.9)}
+html.nightMode .highlight-purple {background:rgba(214, 184, 245, 0.9)}
 html.nightMode .highlight-underline {border-bottom: 2px solid rgba(240, 40, 20, 0.6)}
 
 /**

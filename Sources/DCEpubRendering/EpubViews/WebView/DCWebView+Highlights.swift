@@ -16,7 +16,7 @@ extension DCWebView {
         case rectsForSelection
         case getCoordsFromSelection
         case getSelectionString
-        case highlight(type: HighlightType)
+        case highlight(cssClass: String)
         case clearSelection
         case highlightCoords(coords: String, cssClass: String, uuid: String, text: String)
         case removeHighlightById(uuid: String)
@@ -29,8 +29,8 @@ extension DCWebView {
                 return "getCoordsFromSelection()"
             case .getSelectionString:
                 return "window.getSelection().toString()"
-            case .highlight(type: let type):
-                return "highlightString('highlight-\(type.rawValue)')"
+            case let .highlight(cssClass):
+                return "highlightString(\(jsLiteral(cssClass)))"
             case .clearSelection:
                 return "window.getSelection().removeAllRanges()"
             case let .highlightCoords(coords, cssClass, uuid, text):
@@ -49,40 +49,149 @@ extension DCWebView {
         }
     }
 
-    private enum HighlightType: String {
-        case yellow
-        case underline
-    }
+    // MARK: Selection menu
 
-    func shoMenuInteraction() async {
-        guard let selected = await getSelectedText()?.trimmingCharacters(in: .whitespacesAndNewlines),
-              selected.isEmpty == false,
-              let rectsString = await getRectsFromSelection(),
-              let rectsData = rectsString.data(using: .utf8),
-              let jsonArray = try? JSONSerialization.jsonObject(with: rectsData) as? [[String: Any]],
-              let first = jsonArray.first,
-              let xValue = first["x"] as? CGFloat,
-              let yValue = first["y"] as? CGFloat else { return }
-        let rectInView = CGRect(x: xValue, y: yValue, width: 0, height: 0)
-        self.presentSelectionMenu(at: rectInView, text: selected)
-    }
+    /// The Books-style edit menu for selected text: a row of highlight colors, Add Note,
+    /// Look Up, Translate, Search, Copy and Share. Replaces everything else the system offers.
+    func selectionMenuElements(systemLookUp: [UIMenuElement]) -> [UIMenuElement] {
+        let styles = DCHighlightStyle.allCases.map { style in
+            // No title: the compact edit menu shows titles instead of images. VoiceOver reads the label.
+            let action = UIAction(title: "", image: style.menuImage) { [weak self] _ in
+                self?.highlightSelection(style: style)
+            }
+            action.accessibilityLabel = style.menuTitle
+            return action
+        }
+        let colors: UIMenu
+        if #available(iOS 17.0, *) {
+            colors = UIMenu(options: [.displayInline, .displayAsPalette], children: styles)
+        } else {
+            colors = UIMenu(options: .displayInline, children: styles)
+        }
+        colors.preferredElementSize = .small
 
-    private func presentSelectionMenu(at rect: CGRect, text: String) {
-        removeMenuItems()
-        becomeFirstResponder()
-        let menu = UIMenuController.shared
-        menu.menuItems = [
-            UIMenuItem(title: "Highlight", action: #selector(applyHightLight)),
-            UIMenuItem(title: "Note", action: #selector(applyUnderline))
+        let addNote = UIAction(title: "Add Note", image: UIImage(systemName: "note.text.badge.plus")) { [weak self] _ in
+            self?.addNoteToSelection()
+        }
+
+        // Look Up and Translate come from the system (there's no public Translate API); its
+        // "Search Web" gives way to searching the book.
+        var lookUp = systemLookUp
+        if lookUp.isEmpty {
+            lookUp = [UIAction(title: "Look Up", image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
+                self?.lookUpSelection()
+            }]
+        }
+        let search = UIAction(title: "Search", image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
+            self?.searchBookForSelection()
+        }
+        let copy = UIAction(title: "Copy", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
+            self?.copySelection()
+        }
+        let share = UIAction(title: "Share…", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
+            self?.shareSelection()
+        }
+
+        return [
+            colors,
+            UIMenu(options: .displayInline, children: [addNote]),
+            UIMenu(options: .displayInline, children: lookUp + [search, copy]),
+            UIMenu(options: .displayInline, children: [share])
         ]
-        menu.showMenu(from: self, rect: rect)
     }
 
-    @objc func removeMenuItems() {
-        let menu = UIMenuController.shared
-        menu.menuItems?.removeAll()
-        menu.hideMenu()
-        menu.menuItems = nil
+    /// The system's Look Up and Translate commands, without its web search.
+    static func lookUpCommands(in menu: UIMenu?) -> [UIMenuElement] {
+        (menu?.children ?? []).filter { element in
+            guard let command = element as? UICommand else { return true }
+            return NSStringFromSelector(command.action).lowercased().contains("search") == false
+        }
+    }
+
+    /// Highlights the selection with `style` and saves it.
+    func highlightSelection(style: DCHighlightStyle) {
+        Task { @MainActor [weak self] in
+            await self?.saveSelection(type: .highlight, style: style)
+        }
+    }
+
+    /// Underlines the selection, saves it as a note and opens the note editor.
+    func addNoteToSelection() {
+        Task { @MainActor [weak self] in
+            guard let self, let highlight = await self.saveSelection(type: .note, style: .underline) else { return }
+            self.viewModel.showNoote(highlight: highlight)
+        }
+    }
+
+    @discardableResult
+    private func saveSelection(type: DCHighlight.MarkType, style: DCHighlightStyle) async -> DCHighlight? {
+        guard let coords = await getCoordsFromSelection(),
+              let selectedText = await getSelectedText(),
+              !selectedText.contains("\n"),
+              let uuid = await highlightSelection(cssClass: style.cssClass) else {
+            return nil
+        }
+        let highlight = DCHighlight(
+            uuid: uuid,
+            bookId: viewModel.currentBookId,
+            chapterId: viewModel.currentChapterId,
+            spineIndex: viewModel.currentSpineIndex,
+            type: type,
+            text: selectedText,
+            coords: coords,
+            style: style
+        )
+        await viewModel.saveHighlight(highlight)
+        await clearJSSelection()
+        return highlight
+    }
+
+    func searchBookForSelection() {
+        Task { @MainActor [weak self] in
+            guard let self, let text = await self.selectedText() else { return }
+            await self.clearJSSelection()
+            self.viewModel.searchBook(for: text)
+        }
+    }
+
+    func copySelection() {
+        Task { @MainActor [weak self] in
+            guard let self, let text = await self.selectedText() else { return }
+            UIPasteboard.general.string = text
+            await self.clearJSSelection()
+        }
+    }
+
+    func lookUpSelection() {
+        Task { @MainActor [weak self] in
+            guard let self, let text = await self.selectedText(), let presenter = self.parentViewController else { return }
+            presenter.present(UIReferenceLibraryViewController(term: text), animated: true)
+        }
+    }
+
+    func shareSelection() {
+        Task { @MainActor [weak self] in
+            guard let self, let text = await self.selectedText(), let presenter = self.parentViewController else { return }
+            let sourceRect = await self.selectionRect() ?? CGRect(x: self.bounds.midX, y: self.bounds.midY, width: 0, height: 0)
+            await self.clearJSSelection()
+            let activity = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+            activity.popoverPresentationController?.sourceView = self
+            activity.popoverPresentationController?.sourceRect = sourceRect
+            presenter.present(activity, animated: true)
+        }
+    }
+
+    /// The first rect of the selection, in the web view's coordinates.
+    private func selectionRect() async -> CGRect? {
+        guard let rectsString = await getRectsFromSelection(),
+              let rectsData = rectsString.data(using: .utf8),
+              let rects = try? JSONSerialization.jsonObject(with: rectsData) as? [[String: Any]],
+              let first = rects.first,
+              let x = first["x"] as? CGFloat,
+              let y = first["y"] as? CGFloat else { return nil }
+        let width = first["width"] as? CGFloat ?? 0
+        let height = first["height"] as? CGFloat ?? 0
+        return CGRect(x: x, y: y, width: width, height: height)
     }
 
     private func getRectsFromSelection() async -> String? {
@@ -97,62 +206,12 @@ extension DCWebView {
         try? await self.evaluateJavaScriptAsync(JSMethod.getSelectionString.rawValue) as? String
     }
 
-    private func highlightSelection(type: HighlightType) async -> String? {
-        try? await self.evaluateJavaScriptAsync(JSMethod.highlight(type: type).rawValue) as? String
+    private func highlightSelection(cssClass: String) async -> String? {
+        try? await self.evaluateJavaScriptAsync(JSMethod.highlight(cssClass: cssClass).rawValue) as? String
     }
 
     private func clearJSSelection() async {
         _ = try? await self.evaluateJavaScriptAsync(JSMethod.clearSelection.rawValue)
-    }
-
-    @objc func applyHightLight() {
-        selectionMenuTask?.cancel()
-        Task { @MainActor in
-            guard let coords = await getCoordsFromSelection(),
-                  let selectedText = await getSelectedText(),
-                  !selectedText.contains("\n"),
-                  let uuid = await highlightSelection(type: .yellow) else {
-                return
-            }
-            let highlight = DCHighlight(
-                uuid: uuid,
-                bookId: viewModel.currentBookId,
-                chapterId: viewModel.currentChapterId,
-                spineIndex: viewModel.currentSpineIndex,
-                type: .highlight,
-                text: selectedText,
-                coords: coords
-            )
-            await viewModel.saveHighlight(highlight)
-            await self.clearJSSelection()
-            self.removeMenuItems()
-        }
-    }
-
-    @objc func applyUnderline() {
-        selectionMenuTask?.cancel()
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            guard let coords = await self.getCoordsFromSelection(),
-                  let selectedText = await self.getSelectedText(),
-                  !selectedText.contains("\n"),
-                  let uuid = await self.highlightSelection(type: .underline) else {
-                return
-            }
-            let highlight = DCHighlight(
-                uuid: uuid,
-                bookId: viewModel.currentBookId,
-                chapterId: viewModel.currentChapterId,
-                spineIndex: viewModel.currentSpineIndex,
-                type: .note,
-                text: selectedText,
-                coords: coords
-            )
-            await viewModel.saveHighlight(highlight)
-            await self.clearJSSelection()
-            self.removeMenuItems()
-            self.viewModel.showNoote(highlight: highlight)
-        }
     }
 
     // Removes the highlight span from the DOM without touching the store.
@@ -173,13 +232,48 @@ extension DCWebView {
 
     // Injects a single highlight into the DOM without touching the store.
     func applyHighlight(_ highlight: DCHighlight) async {
-        let cssClass = highlight.type == .highlight ? "highlight-yellow" : "highlight-underline"
         let js = JSMethod.highlightCoords(
             coords: highlight.coords,
-            cssClass: cssClass,
+            cssClass: highlight.displayStyle.cssClass,
             uuid: highlight.uuid,
             text: highlight.text
         ).rawValue
         _ = try? await self.evaluateJavaScriptAsync(js)
+    }
+}
+
+// MARK: - Highlight styles
+
+extension DCHighlightStyle {
+    /// Class in Style.css that draws the style.
+    var cssClass: String { "highlight-\(rawValue)" }
+
+    var menuTitle: String {
+        switch self {
+        case .yellow: "Yellow"
+        case .green: "Green"
+        case .blue: "Blue"
+        case .pink: "Pink"
+        case .purple: "Purple"
+        case .underline: "Underline"
+        }
+    }
+
+    /// Swatch color, matching Style.css. `nil` for the underline.
+    var swatchColor: UIColor? {
+        switch self {
+        case .yellow: UIColor(red: 1, green: 235 / 255, blue: 107 / 255, alpha: 1)
+        case .green: UIColor(red: 192 / 255, green: 237 / 255, blue: 114 / 255, alpha: 1)
+        case .blue: UIColor(red: 173 / 255, green: 216 / 255, blue: 1, alpha: 1)
+        case .pink: UIColor(red: 1, green: 176 / 255, blue: 202 / 255, alpha: 1)
+        case .purple: UIColor(red: 214 / 255, green: 184 / 255, blue: 245 / 255, alpha: 1)
+        case .underline: nil
+        }
+    }
+
+    /// A filled color circle, or the underline glyph.
+    var menuImage: UIImage? {
+        guard let swatchColor else { return UIImage(systemName: "underline") }
+        return UIImage(systemName: "circle.fill")?.withTintColor(swatchColor, renderingMode: .alwaysOriginal)
     }
 }

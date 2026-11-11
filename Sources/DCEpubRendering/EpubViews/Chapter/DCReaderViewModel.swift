@@ -321,6 +321,9 @@ final class DCReaderViewModel: ObservableObject {
             pendingNoteHighlight = highlight
             showNote = true
 
+        case let .searchBook(query):
+            searchBook(for: query)
+
         case let .spineDidChange(spineIndex):
             guard currentSelection != spineIndex else { return }
             currentSelection = spineIndex
@@ -717,6 +720,13 @@ extension DCReaderViewModel: DCChapterReaderContextProtocol {
     func showNote(highlight: DCHighlight) {
         pendingNoteHighlight = highlight
         showNote = true
+    }
+
+    /// Opens the search sheet already searching for `query`.
+    func searchBook(for query: String) {
+        searchViewModel.query = query
+        searchViewModel.queryDidChange()
+        showSearch = true
     }
 
     func save(highlight: DCHighlight) async {

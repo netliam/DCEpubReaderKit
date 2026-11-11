@@ -366,7 +366,7 @@
         // If inside a highlight wrapper, shift to wrapper
         if (node && node.nodeType === 3) {
             const p = node.parentNode;
-            if (p && (hasClass(p, 'highlight-yellow') || hasClass(p, 'highlight_search') || p.className === 'highlight-underline')) {
+            if (isHighlightElement(p)) {
                 node = p;
                 previousignored = true;
             }
@@ -374,7 +374,7 @@
         
         while (node && node.previousSibling) {
             node = node.previousSibling;
-            const isHL = hasClass(node, 'highlight-yellow') || hasClass(node, 'highlight_search') || node.className === 'highlight-underline';
+            const isHL = isHighlightElement(node);
             if (isHL) {
                 offset += getNodeText(node).length;
                 previousignored = true;
@@ -390,6 +390,12 @@
         return offset + (offsetnode || 0);
     }
     
+    // Wrappers drawn for highlights (every color and the underline) and search matches. Coordinates
+    // skip them, so a highlight's coords stay valid however many others share its paragraph.
+    const HIGHLIGHT_CLASS = /^(highlight-(yellow|green|blue|pink|purple|underline)|highlight_search)$/;
+    function isHighlightClassName(name){ return typeof name === 'string' && HIGHLIGHT_CLASS.test(name); }
+    function isHighlightElement(el){ return !!el && el.nodeType === 1 && isHighlightClassName(el.className); }
+
     function hasClass(el, cls){
         if (!el || !el.className) return false;
         if (el.classList) return el.classList.contains(cls);
@@ -397,13 +403,13 @@
     }
     function getNodeText(el){ return (el && (el.textContent || el.innerText)) ? (el.textContent || el.innerText) : ''; }
     
-    function getNodePos(node, ignore, ignore2) {
+    function getNodePos(node) {
         let position = 0;
         let aux = node ? node.previousSibling : null;
-        let previousignored = hasClass(node, 'highlight_search') || hasClass(node, ignore) || (node && node.className === ignore2);
+        let previousignored = isHighlightElement(node);
         
         while (aux) {
-            const notIgnored = !(hasClass(aux, ignore) || hasClass(aux, ignore2) || hasClass(aux, 'highlight_search'));
+            const notIgnored = !isHighlightElement(aux);
             if (notIgnored) {
                 if (!previousignored && aux.nodeType !== 10) {
                     position++;
@@ -411,17 +417,17 @@
                     position++;
                 } else if (aux.nextSibling && aux.nextSibling.nextSibling) {
                     const ns = aux.nextSibling.nextSibling;
-                    const ok = ns.nodeType === 1 && !(hasClass(ns, 'highlight-yellow') || hasClass(ns, 'highlight_search') || hasClass(ns, 'highlight-underline'));
+                    const ok = ns.nodeType === 1 && !isHighlightElement(ns);
                     if (ok) position++;
                 }
                 previousignored = false;
             } else {
                 const emptyText = getNodeText(aux).trim() === '';
-                if (emptyText && aux.className !== ignore2) {
+                if (emptyText && aux.className !== 'highlight-underline') {
                     position++;
                 } else if (!aux.previousSibling && aux.nextSibling && aux.nextSibling.nodeType === 1) {
                     const ns = aux.nextSibling;
-                    const ok = !(hasClass(ns, 'highlight_search') || hasClass(ns, 'highlight-underline') || hasClass(ns, 'highlight-yellow'));
+                    const ok = !isHighlightElement(ns);
                     if (ok) position++;
                 }
                 previousignored = true;
@@ -435,11 +441,11 @@
         const selParents = [];
         let aux = node;
         selParents.push(zeroFilling(parseInt(getOffset(node, offset), 10), SEL_LEN));
-        if (aux && aux.parentNode && (aux.parentNode.className === 'highlight-yellow' || aux.parentNode.className === 'highlight-underline' || aux.parentNode.className === 'highlight_search')) {
+        if (aux && isHighlightElement(aux.parentNode)) {
             aux = aux.parentNode;
         }
         while (aux && aux.parentNode) {
-            const entry = getNodePos(aux, 'highlight-yellow', 'highlight-underline');
+            const entry = getNodePos(aux);
             selParents.push(zeroFilling(parseInt(entry, 10), 7));
             aux = aux.parentNode;
         }
@@ -450,9 +456,9 @@
     function filterByClass(element){
         const re = /(\r\n|\n|\r)/gm;
         if (!isASearch) {
-            return (element.nodeType !== 10 && element.className !== 'highlight-yellow' && element.className !== 'highlight-underline' && element.className !== 'highlight_search');
+            return (element.nodeType !== 10 && !isHighlightElement(element));
         }
-        return (!re.test(element.nodeValue || '') && element.nodeType !== 8 && element.nodeType !== 10 && element.className !== 'highlight-yellow' && element.className !== 'highlight-underline' && element.className !== 'highlight_search');
+        return (!re.test(element.nodeValue || '') && element.nodeType !== 8 && element.nodeType !== 10 && !isHighlightElement(element));
     }
     
     function getNodeFromCoordFix(mark, ifrDoc) {
@@ -461,7 +467,8 @@
         for (let i = 0; i < levels.length - 1; i++) {
             const idx = parseInt(levels[i], 10);
             if (!current) break;
-            current = current.childNodes[idx];
+            // Coords never count the doctype (see getNodePos); XHTML chapters have one before <html>.
+            current = childrenFiltered(current, function (n) { return n.nodeType !== 10; })[idx];
         }
         isASearch = false;
         return current;
@@ -574,7 +581,7 @@
             
             const coordsIniNode = getCoordFromNode(iniNode, 0);
             const coordsIniFixNode = getCoordFromNode(iniFixNode, 0);
-            if (!iniNode || !getNodeText(iniNode).includes(text) || coordsIniNode > coordsIniFixNode) iniNode = iniFixNode;
+            if (iniFixNode && (!iniNode || !getNodeText(iniNode).includes(text) || coordsIniNode > coordsIniFixNode)) iniNode = iniFixNode;
             
             let tempEndNode = getNodeFromCoord(endCoords, document);
             let endNode = getNodeFromCoord(endCoords, document);
@@ -582,7 +589,7 @@
             
             const coordsEndNode = getCoordFromNode(endNode, 0);
             const coordsEndFixNode = getCoordFromNode(endFixNode, 0);
-            if (!endNode || !getNodeText(endNode).includes(text) || coordsEndNode > coordsEndFixNode) endNode = endFixNode;
+            if (endFixNode && (!endNode || !getNodeText(endNode).includes(text) || coordsEndNode > coordsEndFixNode)) endNode = endFixNode;
             
             if (!iniNode){ while (tempIniNode && !getNodeText(tempIniNode).includes(text)) tempIniNode = tempIniNode.nextSibling; }
             if (!endNode){ while (tempEndNode && !getNodeText(tempEndNode).includes(text)) tempEndNode = tempEndNode.nextSibling; }
@@ -734,7 +741,7 @@
             let cur = anchorNode; let skip = false; while (cur){ if (cur === el) { skip = true; break; } cur = cur.parentNode; }
             cur = focusNode; while (!skip && cur){ if (cur === el) { skip = true; break; } cur = cur.parentNode; }
             if (skip) continue;
-            const cls = (cl === 'highlight-yellow') ? 'highlight-yellow' : (cl === 'highlight-underline') ? 'highlight-underline' : 'highlight_search';
+            const cls = isHighlightClassName(cl) ? cl : 'highlight_search';
             if (el.nodeType === 3) {
                 const span = document.createElement('span'); span.className = cls; el.parentNode.insertBefore(span, el); span.appendChild(el);
             } else {
@@ -751,7 +758,7 @@
     }
     
     function checkIfValid(anchorNode, anchorOffset, focusNode, focusOffset) {
-        const invalid = (n)=> n && n.parentNode && (n.parentNode.className === 'highlight-yellow' || n.parentNode.className === 'highlight_search' || n.parentNode.className === 'highlight-underline');
+        const invalid = (n)=> n && isHighlightElement(n.parentNode);
         return !(invalid(anchorNode) || invalid(focusNode));
     }
     
@@ -760,7 +767,7 @@
         selectionRange.setStart(iniNode, iniOffset);
         selectionRange.setEnd(endNode, endOffset);
         const highlightNode = document.createElement('span');
-        highlightNode.className = (cl === 'highlight-yellow') ? 'highlight-yellow' : (cl === 'highlight-underline') ? 'highlight-underline' : 'highlight_search';
+        highlightNode.className = isHighlightClassName(cl) ? cl : 'highlight_search';
         highlightNode.setAttribute('id', guid);
         highlightNode.setAttribute('onclick', 'callHighlightURL(this);');
         selectionRange.surroundContents(highlightNode);
