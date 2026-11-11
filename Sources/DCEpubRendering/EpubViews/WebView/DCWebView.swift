@@ -186,6 +186,18 @@ private extension DCWebView {
 // MARK: - WKWebView evaluateJavaScript with async/await
 
 extension WKWebView {
+    /// Waits until fonts are loaded and layout has settled (see `waitForLayout` in EpubUtil.js).
+    /// Replaces fixed delays: usually a couple of frames; off screen, fonts plus `frameTimeout`.
+    @MainActor
+    func waitForLayout(frameTimeout: TimeInterval = 0.1, totalTimeout: TimeInterval = 2) async {
+        let frameMilliseconds = Int(frameTimeout * 1000)
+        let totalMilliseconds = Int(totalTimeout * 1000)
+        _ = try? await callAsyncJavaScript("return await waitForLayout(\(frameMilliseconds), \(totalMilliseconds));",
+                                           arguments: [:],
+                                           in: nil,
+                                           contentWorld: .page)
+    }
+
     @MainActor
     func evaluateJavaScriptAsync(_ javaScript: String) async throws -> String? {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String?, Error>) in

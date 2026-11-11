@@ -141,6 +141,20 @@
         return String(offset);
     }
 
+    // Resolves once web fonts have loaded and two frames have been laid out, i.e. when measuring
+    // pagination or scroll positions is reliable. WebKit pauses animation frames for web views that
+    // aren't in a window, so the frame wait gives up after `frameTimeout` ms; `totalTimeout` caps
+    // the whole wait in case a font never finishes loading.
+    function waitForLayout(frameTimeout, totalTimeout) {
+        const delay = function (ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); };
+        const frames = new Promise(function (resolve) {
+            requestAnimationFrame(function () { requestAnimationFrame(resolve); });
+        });
+        const fonts = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+        const settled = fonts.then(function () { return Promise.race([frames, delay(frameTimeout || 100)]); });
+        return Promise.race([settled, delay(totalTimeout || 2000)]).then(function () { return 'ready'; });
+    }
+
     function scrollToVerticalPage(page) {
         const offset = window.innerHeight * page;
         window.scrollTo(0, offset);
@@ -804,6 +818,7 @@
         getPageFromCoordsHorizontal,
         scrollToHorizontalPage,
         scrollToVerticalPage,
+        waitForLayout,
         highlightSearchOccurrence,
         scrollToCoordsHorizontal,
         scrollToCoordsVertical,

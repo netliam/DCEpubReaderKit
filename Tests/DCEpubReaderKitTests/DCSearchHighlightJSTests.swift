@@ -10,6 +10,13 @@ import Testing
 import WebKit
 import DCEpubCore
 
+/// Every suite that drives real web views is nested here and runs serially: without a host app the
+/// simulator can't keep WebContent processes resumed, and parallel web views can stall each other.
+@Suite("WebKit-backed", .serialized, .timeLimit(.minutes(1)))
+struct WebKitBackedTests {}
+
+extension WebKitBackedTests {
+
 /// Checks that `highlightSearchOccurrence` in EpubUtil.js marks the same match the Swift search
 /// engine reported, since the reader relies on both sides numbering matches identically.
 @MainActor
@@ -68,6 +75,32 @@ struct DCSearchHighlightJSTests {
         #expect(page == "-1")
     }
 
+    private func measureWaitForLayout(inWindow: Bool) async throws -> TimeInterval {
+        let webView = try await loadPage(body: "<p>Layout</p>")
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        if inWindow {
+            window.addSubview(webView)
+            window.makeKeyAndVisible()
+        }
+        defer { window.isHidden = true }
+        let start = Date()
+        let result = try await webView.callAsyncJavaScript("return await waitForLayout(100, 2000);",
+                                                           arguments: [:],
+                                                           in: nil,
+                                                           contentWorld: .page) as? String
+        #expect(result == "ready")
+        return Date().timeIntervalSince(start)
+    }
+
+    @Test func waitForLayoutTimingInAndOutOfAWindow() async throws {
+        let inWindow = try await measureWaitForLayout(inWindow: true)
+        let offWindow = try await measureWaitForLayout(inWindow: false)
+        print("waitForLayout in window: \(inWindow)s, off window: \(offWindow)s")
+        // Both must beat the fixed 350 ms delay this replaced; off window falls back after ~100 ms.
+        #expect(inWindow < 0.35)
+        #expect(offWindow < 0.35)
+    }
+
     private static func matches(of query: String, in text: String) -> [String] {
         var matches: [String] = []
         var range = text.startIndex..<text.endIndex
@@ -79,8 +112,10 @@ struct DCSearchHighlightJSTests {
     }
 }
 
+}
+
 @MainActor
-private final class NavigationWaiter: NSObject, WKNavigationDelegate {
+final class NavigationWaiter: NSObject, WKNavigationDelegate {
     private var continuation: CheckedContinuation<Void, Error>?
 
     func load(_ html: String, in webView: WKWebView) async throws {

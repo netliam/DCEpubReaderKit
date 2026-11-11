@@ -13,7 +13,6 @@ extension DCChapterWebView {
     enum Constants {
         static let spineIndex = "spineIndex"
         static let fadeDuration: TimeInterval = 0.25
-        static let settleDelay: UInt64 = 350_000_000
     }
 
     private enum JSMethod {
@@ -103,6 +102,11 @@ extension DCChapterWebView {
             }
         }
 
+        /// Lets the fade-out finish so the jump that follows isn't visible.
+        private func waitForFadeOut() async {
+            try? await Task.sleep(nanoseconds: UInt64(Constants.fadeDuration * 1_000_000_000))
+        }
+
         @MainActor
         private func scrollAndReport(_ method: JSMethod, webView: WKWebView) async {
             _ = try? await webView.evaluateJavaScriptAsync(method.rawValue)
@@ -154,6 +158,8 @@ extension DCChapterWebView {
             Task { @MainActor [weak self] in
                 guard let self else { return }
 
+                // Pagination measures the body height, so web fonts must be in place first.
+                await webView.waitForLayout()
                 if let result = await applyPagination(webView),
                    let totalPages = Int(result) {
                     self.cachedTotalPages = max(1, totalPages)
@@ -162,10 +168,10 @@ extension DCChapterWebView {
                                                spineIndex: self.spineIndex))
                 }
 
-                try? await Task.sleep(nanoseconds: Constants.settleDelay)
+                await webView.waitForLayout()
                 await self.restoreInitialPositionIfNeeded(on: webView)
                 await self.lazyWebView?.loadHighlights()
-                try? await Task.sleep(nanoseconds: Constants.settleDelay)
+                await webView.waitForLayout()
                 self.scrollViewDidEndDecelerating(webView.scrollView)
                 self.setInteractivity(true, on: webView, animated: true)
             }
@@ -192,12 +198,12 @@ extension DCChapterWebView {
                 guard let self, let webView else { return }
                 if target == self.spineIndex {
                     self.setInteractivity(false, on: webView, animated: true)
-                    try? await Task.sleep(nanoseconds: Constants.settleDelay)
+                    await self.waitForFadeOut()
                     await self.scrollToLastPageWihtOrientagtion(webView)
                 } else {
                     await self.scrollAndReport(.scrollToFirstPage, webView: webView)
                 }
-                try? await Task.sleep(nanoseconds: Constants.settleDelay)
+                await webView.waitForLayout()
                 self.scrollViewDidEndDecelerating(webView.scrollView)
                 self.setInteractivity(true, on: webView, animated: true)
             }
@@ -226,10 +232,10 @@ extension DCChapterWebView {
                 print("[Nav] jump spineIndex=\(self.spineIndex) orientation=\(self.orientation) jump=\(jump)")
                 #endif
                 self.setInteractivity(false, on: webView, animated: true)
-                try? await Task.sleep(nanoseconds: Constants.settleDelay)
+                await self.waitForFadeOut()
                 await self.perform(jump, on: webView)
+                await webView.waitForLayout()
                 self.scrollViewDidEndDecelerating(webView.scrollView)
-                try? await Task.sleep(nanoseconds: Constants.settleDelay)
                 self.setInteractivity(true, on: webView, animated: true)
             }
         }

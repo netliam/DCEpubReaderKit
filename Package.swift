@@ -40,7 +40,8 @@ let package = Package(
             name: "DCEpubReaderKitTests",
             dependencies: [
                 "DCEpubCore",
-                "DCEpubParser"
+                "DCEpubParser",
+                "DCEpubRendering"
             ],
             resources: [
                 .copy("Fixtures")

@@ -42,7 +42,6 @@ final class DCPageWebViewController: UIViewController {
         static let verticalInset: CGFloat = 12
         static let footerHeight: CGFloat = 20
         static let fadeDuration: TimeInterval = 0.25
-        static let settleDelay: UInt64 = 350_000_000
     }
 
     private enum JSMethod {
@@ -71,6 +70,15 @@ final class DCPageWebViewController: UIViewController {
         }
     }
 
+    /// A loaded web view handed over by a page that left the cache, so the next page can skip
+    /// creating a web view and, for the same chapter at the same size, loading and paginating.
+    struct RecycledWebView {
+        let webView: DCWebView
+        let spineIndex: Int
+        let pageCount: Int
+        let layoutSize: CGSize
+    }
+
     let spineIndex: Int
     let target: DCPageTarget
     /// 0-based page within the chapter. `nil` until the chapter has been paginated.
@@ -86,6 +94,7 @@ final class DCPageWebViewController: UIViewController {
     private let onAction: (DCChapterViewAction) -> Void
 
     private var webView: DCWebView?
+    private var recycled: RecycledWebView?
     private let footerLabel = UILabel()
     private var hasStartedLoading = false
     /// Content offset of this page's column. Any scroll away from it (e.g. selection autoscroll) is undone.
@@ -96,12 +105,14 @@ final class DCPageWebViewController: UIViewController {
          target: DCPageTarget,
          userPreferences: DCUserPreferencesProtocol,
          readerContext: any DCChapterReaderContextProtocol,
+         recycled: RecycledWebView? = nil,
          onAction: @escaping (DCChapterViewAction) -> Void) {
         self.book = book
         self.spineIndex = spineIndex
         self.target = target
         self.userPreferences = userPreferences
         self.readerContext = readerContext
+        self.recycled = recycled
         self.onAction = onAction
         super.init(nibName: nil, bundle: nil)
     }
@@ -113,6 +124,20 @@ final class DCPageWebViewController: UIViewController {
 
     var chapterURL: URL? {
         book.chapterURL(forSpineIndex: spineIndex)
+    }
+
+    /// The page index this page will show, if it can be known before loading finishes.
+    /// `knownPageCount` is the chapter's page count from another page, when available.
+    func expectedPageIndex(knownPageCount: Int?) -> Int? {
+        if let pageIndex { return pageIndex }
+        switch target {
+        case .index(let index):
+            return knownPageCount.map { min(index, $0 - 1) } ?? index
+        case .last:
+            return knownPageCount.map { $0 - 1 }
+        case .coords, .search:
+            return nil
+        }
     }
 
     /// Whether this page satisfies a request for `target` in `spineIndex`.
@@ -137,7 +162,8 @@ final class DCPageWebViewController: UIViewController {
         let desktopMode = userPreferences.getDesktopMode()
         view.backgroundColor = UIColor(desktopMode.backgroundColor)
 
-        let webView = makeWebView()
+        let webView = recycled?.webView ?? makeWebView()
+        attach(webView)
         webView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(webView)
         self.webView = webView
@@ -184,10 +210,8 @@ final class DCPageWebViewController: UIViewController {
             webView.isInspectable = true
         }
         #endif
-        webView.navigationDelegate = self
         webView.isOpaque = false
         webView.backgroundColor = .clear
-        webView.alpha = 0
         webView.allowsBackForwardNavigationGestures = false
 
         let scrollView = webView.scrollView
@@ -197,8 +221,30 @@ final class DCPageWebViewController: UIViewController {
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.showsVerticalScrollIndicator = false
         scrollView.contentInsetAdjustmentBehavior = .never
-        scrollView.delegate = self
         return webView
+    }
+
+    /// Points a new or recycled web view's callbacks at this page.
+    private func attach(_ webView: DCWebView) {
+        webView.viewModel = DCWebViewModel(router: DCPageRouter(page: self))
+        webView.navigationDelegate = self
+        webView.scrollView.delegate = self
+        webView.alpha = 0
+    }
+
+    /// Hands the web view over for reuse. Only loaded pages give one up, so no pagination task can
+    /// still be driving it. The page must not be shown again afterwards.
+    func relinquishWebView() -> RecycledWebView? {
+        guard let webView, let pageCount, chapterURL != nil else { return nil }
+        let recycled = RecycledWebView(webView: webView,
+                                       spineIndex: spineIndex,
+                                       pageCount: pageCount,
+                                       layoutSize: webView.bounds.size)
+        webView.navigationDelegate = nil
+        webView.scrollView.delegate = nil
+        webView.removeFromSuperview()
+        self.webView = nil
+        return recycled
     }
 
     // MARK: - Loading
@@ -215,6 +261,15 @@ final class DCPageWebViewController: UIViewController {
             finishLoading(page: 0, count: 1)
             return
         }
+        // Same chapter, same size: the DOM is already paginated and highlighted, just move to our page.
+        if let recycled, recycled.spineIndex == spineIndex, recycled.layoutSize == webView.bounds.size {
+            self.recycled = nil
+            Task { [weak self] in
+                await self?.showPage(count: recycled.pageCount, highlightsLoaded: true)
+            }
+            return
+        }
+        recycled = nil
         let html = DCChapterHTMLBuilder.html(pathtofile: chapterURL.path, userPreferences: userPreferences)
         webView.loadHTMLString(html, baseURL: chapterURL.deletingLastPathComponent())
     }
@@ -222,12 +277,19 @@ final class DCPageWebViewController: UIViewController {
     private func paginate() async {
         guard let webView else { return }
 
+        // Pagination measures the body height, so web fonts must be in place first.
+        await webView.waitForLayout()
         _ = try? await webView.evaluateJavaScriptAsync(JSMethod.applyHorizontalPagination.rawValue)
-        // Give fonts and columns time to settle before measuring.
-        try? await Task.sleep(nanoseconds: Constants.settleDelay)
+        await webView.waitForLayout()
 
         let rawCount = try? await webView.evaluateJavaScriptAsync(JSMethod.getHorizontalPageCount.rawValue)
         let count = max(1, Int(rawCount ?? "") ?? 1)
+        await showPage(count: count, highlightsLoaded: false)
+    }
+
+    /// Resolves the target page in an already paginated chapter, pins to it and finishes loading.
+    private func showPage(count: Int, highlightsLoaded: Bool) async {
+        guard let webView else { return }
 
         let requestedPage: Int
         switch target {
@@ -242,7 +304,9 @@ final class DCPageWebViewController: UIViewController {
             requestedPage = Int(rawPage ?? "") ?? 0
         case let .search(query, occurrence):
             // User highlights go in first so their coords resolve against the untouched DOM.
-            await webView.loadHighlights()
+            if !highlightsLoaded {
+                await webView.loadHighlights()
+            }
             let rawPage = try? await webView.evaluateJavaScriptAsync(
                 JSMethod.highlightSearchOccurrence(query: query, occurrence: occurrence).rawValue
             )
@@ -256,7 +320,7 @@ final class DCPageWebViewController: UIViewController {
         pin(to: CGPoint(x: offsetX, y: 0))
 
         // Search targets already loaded them before placing the search mark.
-        if !target.isSearch {
+        if !highlightsLoaded && !target.isSearch {
             await webView.loadHighlights()
         }
 

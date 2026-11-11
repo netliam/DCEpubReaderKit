@@ -29,11 +29,17 @@ final class DCPagedReaderController: UIViewController {
     private let readerContext: any DCChapterReaderContextProtocol
     private let onAction: (DCChapterViewAction, URL?) -> Void
 
-    private var pageViewController: UIPageViewController?
+    private(set) var pageViewController: UIPageViewController?
     /// Hosts preloaded pages off screen (behind the opaque page view controller) so they lay out and render.
     private let preloadContainer = UIView()
     /// Current page plus its preloaded neighbours.
     private var cachedPages: [DCPageWebViewController] = []
+    /// Web views from pages that left the cache, reused by the next pages created.
+    private var recycledWebViews: [DCPageWebViewController.RecycledWebView] = []
+    private let maxRecycledWebViews = 2
+    /// Page count per spine index for the current layout. Lets the data source answer page turns
+    /// before the current page has finished paginating (e.g. when flipping quickly).
+    private var pageCounts: [Int: Int] = [:]
 
     private var configId: String
     /// Start position waiting for the first layout pass.
@@ -62,7 +68,7 @@ final class DCPagedReaderController: UIViewController {
         fatalError("init(coder:) has not been implemented")
     }
 
-    private var currentPage: DCPageWebViewController? {
+    var currentPage: DCPageWebViewController? {
         pageViewController?.viewControllers?.first as? DCPageWebViewController
     }
 
@@ -130,21 +136,31 @@ final class DCPagedReaderController: UIViewController {
         reloadTask = Task { [weak self] in
             let coords = await current.currentPageCoords()
             guard !Task.isCancelled else { return }
-            self?.rebuild(spineIndex: spineIndex, target: coords.map { .coords($0) } ?? fallbackTarget)
+            self?.rebuild(spineIndex: spineIndex,
+                          target: coords.map { .coords($0) } ?? fallbackTarget,
+                          invalidatesLayout: true)
         }
     }
 
-    private func rebuild(spineIndex: Int, target: DCPageTarget) {
+    /// - Parameter invalidatesLayout: Settings or page size changed, so page counts and loaded web
+    ///   views no longer match the new layout and must not be reused.
+    private func rebuild(spineIndex: Int, target: DCPageTarget, invalidatesLayout: Bool = false) {
         guard lastLayoutSize != .zero else {
             pendingStart = (spineIndex, target)
             return
         }
-        discardCachedPages()
-
         if let old = pageViewController {
             old.willMove(toParent: nil)
             old.view.removeFromSuperview()
             old.removeFromParent()
+        }
+        if invalidatesLayout {
+            cachedPages.forEach(detachFromPreload)
+            cachedPages = []
+            recycledWebViews = []
+            pageCounts = [:]
+        } else {
+            discardCachedPages()
         }
 
         let style = Self.transitionStyle(for: userPreferences.getPageTransition())
@@ -177,7 +193,8 @@ final class DCPagedReaderController: UIViewController {
             spineIndex: spineIndex,
             target: target,
             userPreferences: userPreferences,
-            readerContext: readerContext
+            readerContext: readerContext,
+            recycled: takeRecycledWebView(preferring: spineIndex)
         ) { [weak self] action in
             self?.onAction(action, chapterURL)
         }
@@ -186,9 +203,10 @@ final class DCPagedReaderController: UIViewController {
     }
 
     /// Spine index and target of the page after `page`, or `nil` at the end of the book
-    /// (or while `page` is still paginating and its page count is unknown).
+    /// (or while `page` is still paginating and its chapter's page count isn't known yet).
     private func spec(after page: DCPageWebViewController) -> (spineIndex: Int, target: DCPageTarget)? {
-        guard let pageIndex = page.pageIndex, let pageCount = page.pageCount else { return nil }
+        guard let pageCount = page.pageCount ?? pageCounts[page.spineIndex],
+              let pageIndex = page.expectedPageIndex(knownPageCount: pageCount) else { return nil }
         if pageIndex + 1 < pageCount {
             return (page.spineIndex, .index(pageIndex + 1))
         }
@@ -198,12 +216,14 @@ final class DCPagedReaderController: UIViewController {
 
     /// Spine index and target of the page before `page`, or `nil` at the start of the book.
     private func spec(before page: DCPageWebViewController) -> (spineIndex: Int, target: DCPageTarget)? {
-        guard let pageIndex = page.pageIndex else { return nil }
+        guard let pageIndex = page.expectedPageIndex(knownPageCount: pageCounts[page.spineIndex]) else { return nil }
         if pageIndex > 0 {
             return (page.spineIndex, .index(pageIndex - 1))
         }
         guard page.spineIndex > 0 else { return nil }
-        return (page.spineIndex - 1, .last)
+        // A concrete index (when known) matches already-loaded pages; `.last` is resolved on load.
+        let previousSpine = page.spineIndex - 1
+        return (previousSpine, pageCounts[previousSpine].map { .index($0 - 1) } ?? .last)
     }
 
     /// Returns a cached page for the spec (detaching it from the preload container) or a new one.
@@ -235,9 +255,28 @@ final class DCPagedReaderController: UIViewController {
         page.removeFromParent()
     }
 
+    /// Releases every cached page, keeping their web views for reuse.
     private func discardCachedPages() {
-        cachedPages.forEach(detachFromPreload)
+        for page in cachedPages {
+            detachFromPreload(page)
+            recycle(page)
+        }
         cachedPages = []
+    }
+
+    private func recycle(_ page: DCPageWebViewController) {
+        guard let recycled = page.relinquishWebView() else { return }
+        recycledWebViews.insert(recycled, at: 0)
+        if recycledWebViews.count > maxRecycledWebViews {
+            recycledWebViews.removeLast(recycledWebViews.count - maxRecycledWebViews)
+        }
+    }
+
+    /// A recycled web view, preferring one already showing `spineIndex` (which skips loading entirely).
+    private func takeRecycledWebView(preferring spineIndex: Int) -> DCPageWebViewController.RecycledWebView? {
+        guard !recycledWebViews.isEmpty else { return nil }
+        let index = recycledWebViews.firstIndex { $0.spineIndex == spineIndex } ?? 0
+        return recycledWebViews.remove(at: index)
     }
 
     /// Preloads the neighbours of `current` and drops pages that are no longer adjacent.
@@ -261,6 +300,7 @@ final class DCPagedReaderController: UIViewController {
         }
         for page in cachedPages where !keep.contains(where: { $0 === page }) {
             detachFromPreload(page)
+            recycle(page)
         }
         cachedPages = keep
     }
@@ -355,6 +395,9 @@ extension DCPagedReaderController: UIPageViewControllerDelegate {
 
 extension DCPagedReaderController: DCPageWebViewControllerDelegate {
     func pageDidLoad(_ page: DCPageWebViewController) {
+        if let pageCount = page.pageCount {
+            pageCounts[page.spineIndex] = pageCount
+        }
         guard page === currentPage else { return }
         currentPageDidSettle()
         // The scroll style caches "no neighbour" answers given while the page was still paginating;
@@ -368,11 +411,18 @@ extension DCPagedReaderController: DCPageWebViewControllerDelegate {
         for sibling in cachedPages where sibling !== page && sibling.spineIndex == page.spineIndex {
             sibling.applyHighlight(highlight)
         }
+        // Recycled web views keep their DOM, so they must stay in sync too.
+        for recycled in recycledWebViews where recycled.spineIndex == page.spineIndex {
+            Task { await recycled.webView.applyHighlight(highlight) }
+        }
     }
 
     func page(_ page: DCPageWebViewController, didDeleteHighlightWith uuid: String) {
         for sibling in cachedPages where sibling !== page && sibling.spineIndex == page.spineIndex {
             sibling.removeHighlight(uuid: uuid)
+        }
+        for recycled in recycledWebViews where recycled.spineIndex == page.spineIndex {
+            Task { await recycled.webView.removeHighlight(uuid: uuid) }
         }
     }
 }
