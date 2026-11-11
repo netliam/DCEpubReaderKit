@@ -70,6 +70,9 @@ public struct DCReaderView: View {
             .sheet(isPresented: $viewModel.showMarks) {
                 sheetMarksView
             }
+            .sheet(isPresented: $viewModel.showSearch) {
+                sheetSearchView
+            }
             .sheet(isPresented: $viewModel.showNote) {
                 if let highlight = viewModel.pendingNoteHighlight {
                     DCNotesViewBuilder().build(

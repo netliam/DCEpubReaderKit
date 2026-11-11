@@ -26,6 +26,9 @@ extension DCChapterWebView {
         case getCoordsFirstNodeOfPageVertical(page: Int)
         case scrollToCoordsHorizontal(String)
         case scrollToCoordsVertical(String)
+        case highlightSearchOccurrence(query: String, occurrence: Int, vertical: Bool)
+        case scrollToHorizontalPage(Int)
+        case scrollToVerticalPage(Int)
         case clearTextSelection
 
         var rawValue: String {
@@ -48,6 +51,12 @@ extension DCChapterWebView {
                 return "scrollToCoordsHorizontal(\(coords.jsStringLiteral))"
             case .scrollToCoordsVertical(let coords):
                 return "scrollToCoordsVertical(\(coords.jsStringLiteral))"
+            case let .highlightSearchOccurrence(query, occurrence, vertical):
+                return "highlightSearchOccurrence(\(query.jsStringLiteral), \(occurrence), \(vertical))"
+            case .scrollToHorizontalPage(let page):
+                return "scrollToHorizontalPage(\(page))"
+            case .scrollToVerticalPage(let page):
+                return "scrollToVerticalPage(\(page))"
             case .clearTextSelection:
                 return "clearTextSelection()"
             }
@@ -115,14 +124,30 @@ extension DCChapterWebView {
 
         @MainActor
         private func restoreInitialPositionIfNeeded(on webView: WKWebView) async {
-            guard let coords = viewModel?.consumeInitialCoords(), !coords.isEmpty else { return }
+            guard let jump = viewModel?.consumeInitialJump() else { return }
             #if DEBUG
-            print("[Nav] restoreInitialPosition spineIndex=\(spineIndex) orientation=\(orientation) coords=\(coords.prefix(60))")
+            print("[Nav] restoreInitialPosition spineIndex=\(spineIndex) orientation=\(orientation) jump=\(jump)")
             #endif
-            let method: JSMethod = orientation == .horizontal ?
-                .scrollToCoordsHorizontal(coords) :
-                .scrollToCoordsVertical(coords)
-            _ = try? await webView.evaluateJavaScriptAsync(method.rawValue)
+            await perform(jump, on: webView)
+        }
+
+        /// Scrolls to a saved location, or highlights a search match and scrolls to its page.
+        @MainActor
+        private func perform(_ jump: DCChapterJump, on webView: WKWebView) async {
+            let isHorizontal = orientation == .horizontal
+            switch jump {
+            case .coords(let coords):
+                guard !coords.isEmpty else { return }
+                let method: JSMethod = isHorizontal ? .scrollToCoordsHorizontal(coords) : .scrollToCoordsVertical(coords)
+                _ = try? await webView.evaluateJavaScriptAsync(method.rawValue)
+            case let .search(query, occurrence):
+                let rawPage = try? await webView.evaluateJavaScriptAsync(
+                    JSMethod.highlightSearchOccurrence(query: query, occurrence: occurrence, vertical: !isHorizontal).rawValue
+                )
+                guard let page = Int(rawPage ?? ""), page >= 0 else { return }
+                let method: JSMethod = isHorizontal ? .scrollToHorizontalPage(page) : .scrollToVerticalPage(page)
+                _ = try? await webView.evaluateJavaScriptAsync(method.rawValue)
+            }
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -194,19 +219,16 @@ extension DCChapterWebView {
             }
         }
 
-        func scrollToHighlight(coords: String) {
-            guard coords.isEmpty == false else { return }
+        func jump(to jump: DCChapterJump) {
             Task { @MainActor [weak self] in
                 guard let self, let webView = self.lazyWebView else { return }
                 #if DEBUG
-                print("[Nav] scrollToHighlight spineIndex=\(self.spineIndex) orientation=\(self.orientation) coords=\(coords.prefix(60))")
+                print("[Nav] jump spineIndex=\(self.spineIndex) orientation=\(self.orientation) jump=\(jump)")
                 #endif
                 self.setInteractivity(false, on: webView, animated: true)
                 try? await Task.sleep(nanoseconds: Constants.settleDelay)
-                let method: JSMethod = self.orientation == .horizontal ?
-                    .scrollToCoordsHorizontal(coords) :
-                    .scrollToCoordsVertical(coords)
-                await self.scrollAndReport(method, webView: webView)
+                await self.perform(jump, on: webView)
+                self.scrollViewDidEndDecelerating(webView.scrollView)
                 try? await Task.sleep(nanoseconds: Constants.settleDelay)
                 self.setInteractivity(true, on: webView, animated: true)
             }

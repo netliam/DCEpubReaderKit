@@ -48,7 +48,7 @@ private final class DCNotesPreviewContext: DCChapterReaderContextProtocol {
     let currentBook = DCEpubBook.mock
     let bookId = "preview-book"
 
-    func consumeInitialCoords(for spineIndex: Int, chapterURL: URL) -> String? { nil }
+    func consumeInitialJump(for spineIndex: Int, chapterURL: URL) -> DCChapterJump? { nil }
     func showNote(highlight: DCHighlight) {}
     func save(highlight: DCHighlight) async {}
     func deleteHighlight(uuid: String) async {}

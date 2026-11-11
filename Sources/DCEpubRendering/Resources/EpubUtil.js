@@ -140,6 +140,82 @@
         window.scrollTo(offset, 0);
         return String(offset);
     }
+
+    function scrollToVerticalPage(page) {
+        const offset = window.innerHeight * page;
+        window.scrollTo(0, offset);
+        return String(offset);
+    }
+
+    // --------------------------------------------------
+    // Search
+    // --------------------------------------------------
+    // Body text nodes in document order, skipping <script>/<style>. Their concatenation matches
+    // DCHTMLText.bodyText on the native side, so match numbers agree between the two.
+    function searchableTextNodes() {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+            acceptNode: function (node) {
+                const parent = node.parentNode ? node.parentNode.nodeName : '';
+                return (parent === 'SCRIPT' || parent === 'STYLE') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+            }
+        });
+        const nodes = [];
+        let node;
+        while ((node = walker.nextNode())) nodes.push(node);
+        return nodes;
+    }
+
+    // Wraps the n-th (0-based, non-overlapping, case-insensitive) match of `query` in
+    // span.highlight_search and returns the 0-based page that contains it, or "-1" if not found.
+    // `highlight_search` is the class the coords helpers (getOffset, getNodePos, filterByClass)
+    // already skip, so saved positions and highlights stay valid around search marks.
+    function highlightSearchOccurrence(query, occurrence, vertical) {
+        if (!query) return '-1';
+        const nodes = searchableTextNodes();
+        const starts = [];
+        let text = '';
+        nodes.forEach(function (n) { starts.push(text.length); text += n.nodeValue; });
+
+        const haystack = text.toLowerCase();
+        const needle = query.toLowerCase();
+        let index = -1;
+        let from = 0;
+        for (let i = 0; i <= occurrence; i++) {
+            index = haystack.indexOf(needle, from);
+            if (index < 0) return '-1';
+            from = index + needle.length;
+        }
+        const end = index + needle.length;
+
+        // A match can span several text nodes (e.g. "Moby <b>Di</b>ck"): wrap each piece.
+        // Walk backwards so splitting a node doesn't shift the offsets of nodes still to visit.
+        let first = null;
+        for (let i = nodes.length - 1; i >= 0; i--) {
+            const nodeStart = starts[i];
+            const nodeEnd = nodeStart + nodes[i].nodeValue.length;
+            if (nodeEnd <= index || nodeStart >= end) continue;
+            let piece = nodes[i];
+            const pieceStart = Math.max(index, nodeStart) - nodeStart;
+            const pieceEnd = Math.min(end, nodeEnd) - nodeStart;
+            if (pieceEnd < piece.nodeValue.length) piece.splitText(pieceEnd);
+            if (pieceStart > 0) piece = piece.splitText(pieceStart);
+            const span = document.createElement('span');
+            span.className = 'highlight_search';
+            span.style.backgroundColor = 'rgba(255, 170, 0, 0.45)';
+            span.style.borderRadius = '2px';
+            piece.parentNode.insertBefore(span, piece);
+            span.appendChild(piece);
+            first = span;
+        }
+        if (!first) return '-1';
+
+        const offset = offsetOf(first);
+        const page = vertical
+            ? Math.floor(offset.top / window.innerHeight)
+            : Math.floor(offset.left / window.innerWidth);
+        if (NAV_DEBUG) console.log('[Nav] highlightSearchOccurrence occurrence=' + occurrence + ' page=' + page);
+        return String(Math.max(0, page));
+    }
     
     function applyVerticalPagination() {
         let margin_top = 40;
@@ -727,6 +803,8 @@
         getHorizontalPageCount,
         getPageFromCoordsHorizontal,
         scrollToHorizontalPage,
+        scrollToVerticalPage,
+        highlightSearchOccurrence,
         scrollToCoordsHorizontal,
         scrollToCoordsVertical,
         applyVerticalPagination,

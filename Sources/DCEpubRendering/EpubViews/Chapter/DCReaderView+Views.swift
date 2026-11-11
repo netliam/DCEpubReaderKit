@@ -28,6 +28,12 @@ extension DCReaderView {
         ToolbarItem(placement: .navigationBarTrailing) {
             HStack(spacing: 16) {
                 Button {
+                    viewModel.showSearch = true
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .tint(.gray)
+                }
+                Button {
                     viewModel.saveBookMark()
                 } label: {
                     Image(systemName: "bookmark")
@@ -70,6 +76,19 @@ extension DCReaderView {
                     }
                 }
             }
+        }
+    }
+
+    var sheetSearchView: some View {
+        NavigationStack {
+            DCSearchViewBuilder().build(viewModel: viewModel.searchViewModel)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Close") {
+                            viewModel.showSearch = false
+                        }
+                    }
+                }
         }
     }
 

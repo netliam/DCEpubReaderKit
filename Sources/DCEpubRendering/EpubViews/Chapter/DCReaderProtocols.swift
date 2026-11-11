@@ -36,11 +36,19 @@ public extension DCReaderCoordsProtocol {
     }
 }
 
+/// Where to move inside a chapter once it has loaded.
+enum DCChapterJump: Equatable {
+    /// A saved location (position, highlight or bookmark).
+    case coords(String)
+    /// The n-th match of a search query, which is also highlighted.
+    case search(query: String, occurrence: Int)
+}
+
 @MainActor
 protocol DCChapterReaderContextProtocol: AnyObject {
     var currentBook: DCEpubBook { get }
     var bookId: String { get }
-    func consumeInitialCoords(for spineIndex: Int, chapterURL: URL) -> String?
+    func consumeInitialJump(for spineIndex: Int, chapterURL: URL) -> DCChapterJump?
     func showNote(highlight: DCHighlight)
     func save(highlight: DCHighlight) async
     func deleteHighlight(uuid: String) async

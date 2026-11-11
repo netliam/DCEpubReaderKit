@@ -30,13 +30,21 @@ final class DCReaderViewModel: ObservableObject {
     @Published var settingsSheetHeight: CGFloat = 0
 
     @Published var showMarks: Bool = false
+    @Published var showSearch: Bool = false
     @Published var showNote: Bool = false
     @Published var pendingNoteHighlight: DCHighlight?
 
     var chapterViewModels: [Int: DCChapterWebViewModel] = [:]
-    private var pendingNavigationCoordsBySpineIndex: [Int: String] = [:]
+    private var pendingJumpsBySpineIndex: [Int: DCChapterJump] = [:]
     /// Paged (horizontal) reader, set when it is created.
     weak var pagedNavigator: DCPagedReaderNavigating?
+    /// Created lazily so books that are never searched don't pay for text extraction. Kept for the
+    /// reader's lifetime so the query and results survive closing the search sheet.
+    private(set) lazy var searchViewModel = DCSearchViewModel(
+        engine: DCEpubSearchEngine(book: book)
+    ) { [weak self] result, query in
+        self?.navigate(to: result, query: query)
+    }
     /// Last reported reading position, used to resume when the reader is rebuilt.
     private var lastPosition: (spineIndex: Int, coords: String)?
 
@@ -254,12 +262,12 @@ final class DCReaderViewModel: ObservableObject {
 
         // Only consume the pending coord when the chapter viewModel is already available.
         // If the chapter has not yet registered its viewModel (first-time load), the coord
-        // stays in pendingNavigationCoordsBySpineIndex so that restoreInitialPositionIfNeeded
+        // stays in pendingJumpsBySpineIndex so that restoreInitialPositionIfNeeded
         // can consume it once the WebView finishes loading.
         if let chapterViewModel = chapterViewModels[currentSelection],
-           let coords = pendingNavigationCoordsBySpineIndex[currentSelection] {
-            pendingNavigationCoordsBySpineIndex.removeValue(forKey: currentSelection)
-            chapterViewModel.scrollToHighlight(coords: coords)
+           let jump = pendingJumpsBySpineIndex[currentSelection] {
+            pendingJumpsBySpineIndex.removeValue(forKey: currentSelection)
+            chapterViewModel.jump(to: jump)
             return
         }
 
@@ -285,19 +293,32 @@ final class DCReaderViewModel: ObservableObject {
     @MainActor
     func navigate(to highlight: DCHighlight) {
         showMarks = false
-
         if isPagedMode {
             pagedNavigator?.show(spineIndex: highlight.spineIndex, coords: highlight.coords)
             return
         }
+        navigate(to: .coords(highlight.coords), in: highlight.spineIndex)
+    }
 
-        if highlight.spineIndex == currentSelection {
-            chapterViewModels[currentSelection]?.scrollToHighlight(coords: highlight.coords)
+    @MainActor
+    func navigate(to result: DCSearchResult, query: String) {
+        showSearch = false
+        if isPagedMode {
+            pagedNavigator?.show(spineIndex: result.spineIndex, searchQuery: query, occurrence: result.occurrence)
             return
         }
+        navigate(to: .search(query: query, occurrence: result.occurrence), in: result.spineIndex)
+    }
 
-        pendingNavigationCoordsBySpineIndex[highlight.spineIndex] = highlight.coords
-        currentSelection = highlight.spineIndex
+    /// Vertical reader: jump now if the chapter is current, else once it loads (see `consumeInitialJump`).
+    @MainActor
+    private func navigate(to jump: DCChapterJump, in spineIndex: Int) {
+        if spineIndex == currentSelection {
+            chapterViewModels[currentSelection]?.jump(to: jump)
+            return
+        }
+        pendingJumpsBySpineIndex[spineIndex] = jump
+        currentSelection = spineIndex
     }
 
     func registerChapterViewModel(_ viewModel: DCChapterWebViewModel, for index: Int) {
@@ -311,13 +332,14 @@ final class DCReaderViewModel: ObservableObject {
 extension DCReaderViewModel: DCChapterReaderContextProtocol {
     var currentBook: DCEpubBook { book }
 
-    func consumeInitialCoords(for spineIndex: Int, chapterURL: URL) -> String? {
-        if let coords = pendingNavigationCoordsBySpineIndex.removeValue(forKey: spineIndex) {
-            return coords
+    func consumeInitialJump(for spineIndex: Int, chapterURL: URL) -> DCChapterJump? {
+        if let jump = pendingJumpsBySpineIndex.removeValue(forKey: spineIndex) {
+            return jump
         }
         guard spineIndex == self.spineIndex else { return nil }
         guard chapterURL == book.chapterURL(forSpineIndex: spineIndex) else { return nil }
-        return initialCoords
+        guard let initialCoords, !initialCoords.isEmpty else { return nil }
+        return .coords(initialCoords)
     }
 
     func showNote(highlight: DCHighlight) {

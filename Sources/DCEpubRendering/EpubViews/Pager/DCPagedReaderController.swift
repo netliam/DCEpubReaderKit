@@ -12,6 +12,7 @@ import DCEpubCore
 @MainActor
 protocol DCPagedReaderNavigating: AnyObject {
     func show(spineIndex: Int, coords: String?)
+    func show(spineIndex: Int, searchQuery: String, occurrence: Int)
     func saveBookmark()
 }
 
@@ -299,6 +300,11 @@ extension DCPagedReaderController: DCPagedReaderNavigating {
     func show(spineIndex: Int, coords: String?) {
         reloadTask?.cancel()
         rebuild(spineIndex: spineIndex, target: Self.target(for: coords))
+    }
+
+    func show(spineIndex: Int, searchQuery: String, occurrence: Int) {
+        reloadTask?.cancel()
+        rebuild(spineIndex: spineIndex, target: .search(query: searchQuery, occurrence: occurrence))
     }
 
     func saveBookmark() {

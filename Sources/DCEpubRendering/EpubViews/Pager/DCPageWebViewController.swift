@@ -14,6 +14,13 @@ enum DCPageTarget: Equatable {
     case index(Int)
     case last
     case coords(String)
+    /// The n-th match of a search query, which is also highlighted.
+    case search(query: String, occurrence: Int)
+
+    var isSearch: Bool {
+        if case .search = self { return true }
+        return false
+    }
 }
 
 @MainActor
@@ -44,6 +51,7 @@ final class DCPageWebViewController: UIViewController {
         case getPageFromCoordsHorizontal(String)
         case scrollToHorizontalPage(Int)
         case getCoordsFirstNodeOfPageHorizontal(page: Int)
+        case highlightSearchOccurrence(query: String, occurrence: Int)
 
         var rawValue: String {
             switch self {
@@ -57,6 +65,8 @@ final class DCPageWebViewController: UIViewController {
                 return "scrollToHorizontalPage(\(page))"
             case .getCoordsFirstNodeOfPageHorizontal(let page):
                 return "getCoordsFirstNodeOfPageHorizontal(\(page))"
+            case let .highlightSearchOccurrence(query, occurrence):
+                return "highlightSearchOccurrence(\(query.jsStringLiteral), \(occurrence), false)"
             }
         }
     }
@@ -115,7 +125,7 @@ final class DCPageWebViewController: UIViewController {
             return index == pageIndex
         case .last:
             return pageIndex == pageCount - 1
-        case .coords:
+        case .coords, .search:
             return false
         }
     }
@@ -230,6 +240,13 @@ final class DCPageWebViewController: UIViewController {
                 JSMethod.getPageFromCoordsHorizontal(coords).rawValue
             )
             requestedPage = Int(rawPage ?? "") ?? 0
+        case let .search(query, occurrence):
+            // User highlights go in first so their coords resolve against the untouched DOM.
+            await webView.loadHighlights()
+            let rawPage = try? await webView.evaluateJavaScriptAsync(
+                JSMethod.highlightSearchOccurrence(query: query, occurrence: occurrence).rawValue
+            )
+            requestedPage = Int(rawPage ?? "") ?? 0
         }
         let page = min(max(0, requestedPage), count - 1)
 
@@ -238,7 +255,10 @@ final class DCPageWebViewController: UIViewController {
         let offsetX = Double(rawOffset ?? "").map { CGFloat($0) } ?? CGFloat(page) * webView.scrollView.bounds.width
         pin(to: CGPoint(x: offsetX, y: 0))
 
-        await webView.loadHighlights()
+        // Search targets already loaded them before placing the search mark.
+        if !target.isSearch {
+            await webView.loadHighlights()
+        }
 
         if count > 1 {
             footerLabel.text = DCReaderViewModel.pageInfo(currentPage: page + 1, totalPages: count)

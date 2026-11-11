@@ -39,10 +39,10 @@ final class DCChapterWebViewModel: ObservableObject {
         self.onAction = onAction
     }
 
-    func consumeInitialCoords() -> String? {
+    func consumeInitialJump() -> DCChapterJump? {
         guard hasConsumedInitialCoords == false else { return nil }
         hasConsumedInitialCoords = true
-        return readerContext.consumeInitialCoords(for: spineIndex, chapterURL: chapterURL)
+        return readerContext.consumeInitialJump(for: spineIndex, chapterURL: chapterURL)
     }
 }
 
@@ -76,7 +76,7 @@ extension DCChapterWebViewModel: DCWebViewRouterProtocol {
         coordinator?.saveBookMark()
     }
 
-    func scrollToHighlight(coords: String) {
-        coordinator?.scrollToHighlight(coords: coords)
+    func jump(to jump: DCChapterJump) {
+        coordinator?.jump(to: jump)
     }
 }

@@ -48,7 +48,7 @@ Most EPUB solutions are either:
 - Layout tuning (line height, margins)
 
 ### 🔍 Search
-- Full-text search (planned)
+- Full-text search ✅ (runs off the main thread, opens the match highlighted)
 
 ### 💾 Persistence
 - Reading position tracking
@@ -101,7 +101,7 @@ Then:
 - [x] Horizontal pagination
 - [x] Highlights & bookmarks
 - [x] State persistence helpers
-- [ ] Search engine
+- [x] Search engine
 - [ ] Performance optimizations (large books)
 - [ ] Accessibility improvements (VoiceOver, dynamic type)
 
@@ -126,6 +126,15 @@ DCReaderViewBuilder.build(
 
 To use your own storage, implement `DCReaderCoordsProtocol` directly (as the example app does with Realm),
 or implement `DCHighlightStoreProtocol` + `DCReadingPositionStoreProtocol` and keep `DCStoreReaderDelegate`.
+
+## 🔍 Search
+
+The reader's toolbar includes search. To search outside the reader, use the engine directly:
+
+```swift
+let engine = DCEpubSearchEngine(book: book)
+let results = await engine.search("whale")   // [DCSearchResult] with chapter, snippet and match
+```
 
 ---
 
