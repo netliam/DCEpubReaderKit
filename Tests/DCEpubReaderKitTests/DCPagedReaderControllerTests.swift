@@ -153,6 +153,34 @@ struct DCPagedReaderControllerTests {
         }
     }
 
+    /// Relayouts in a row (bigger text, then smaller again) must reuse one anchor instead of
+    /// re-reading it from each new layout, which drifted the position back a page.
+    @Test func consecutiveRelayoutsKeepTheSameAnchor() async throws {
+        let (controller, window) = makeController(book: try makeBook())
+        defer { window.isHidden = true }
+        let first = try #require(controller.currentPage)
+        try await waitUntil { first.isLoaded }
+        // Move into the chapter so the anchor isn't simply its start.
+        for _ in 0..<3 {
+            let current = try #require(controller.currentPage)
+            let next = try #require(page(after: current, in: controller))
+            settle(on: next, in: controller)
+            try await waitUntil { next.isLoaded }
+        }
+
+        controller.apply(configId: "bigger", appearance: Self.appearance)
+        try await waitUntil { controller.currentPage !== nil && controller.currentPage?.isLoaded == true && controller.currentPage?.target != .index(3) }
+        let afterFirst = try #require(controller.currentPage)
+        guard case .coords = afterFirst.target else {
+            Issue.record("the relayout should open at the saved position")
+            return
+        }
+
+        controller.apply(configId: "smaller", appearance: Self.appearance)
+        try await waitUntil { controller.currentPage !== afterFirst && controller.currentPage?.isLoaded == true }
+        #expect(controller.currentPage?.target == afterFirst.target)
+    }
+
     @Test func togglingLineFocusUpdatesTheCurrentPageWithoutReloading() async throws {
         let (controller, window) = makeController(book: try makeBook())
         defer { window.isHidden = true }

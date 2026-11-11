@@ -171,6 +171,13 @@ final class DCPagedReaderController: UIViewController {
         let spineIndex = current.spineIndex
         let fallbackTarget = current.target
         reloadTask = Task { [weak self] in
+            // Still on the page a previous relayout opened: keep that anchor. Re-reading it from the
+            // relaid-out page would drift (e.g. bigger then smaller text ending a page earlier).
+            if case .coords = fallbackTarget {
+                guard !Task.isCancelled else { return }
+                self?.rebuild(spineIndex: spineIndex, target: fallbackTarget, invalidatesLayout: true)
+                return
+            }
             let coords = await current.currentPageCoords()
             guard !Task.isCancelled else { return }
             self?.rebuild(spineIndex: spineIndex,
