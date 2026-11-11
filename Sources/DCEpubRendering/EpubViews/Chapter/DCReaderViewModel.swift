@@ -41,6 +41,8 @@ final class DCReaderViewModel: ObservableObject {
     @Published private(set) var transientStatus: String?
     /// The book's bookmarks, loaded when the reader opens and kept in sync as they are added/removed.
     @Published private(set) var bookmarks: [DCHighlight] = []
+    /// Page (0-based, within its chapter) of TOC anchors and saved marks, from the background count.
+    @Published private(set) var locatedPages: [DCBookPaginator.LocatedPlace: Int] = [:]
     /// Bookmarks that land on the page on screen (usually zero or one).
     @Published private(set) var currentPageBookmarkIds: [String] = []
     /// Page count per spine index from the background paginator.
@@ -58,7 +60,8 @@ final class DCReaderViewModel: ObservableObject {
     /// Created lazily so books that are never searched don't pay for text extraction. Kept for the
     /// reader's lifetime so the query and results survive closing the search sheet.
     private(set) lazy var searchViewModel = DCSearchViewModel(
-        engine: DCEpubSearchEngine(book: book)
+        engine: DCEpubSearchEngine(book: book),
+        pageNumber: { [weak self] result in self?.bookPage(for: result) }
     ) { [weak self] result, query in
         self?.navigate(to: result, query: query)
     }
@@ -75,6 +78,13 @@ final class DCReaderViewModel: ObservableObject {
     private var lastCompleteBookPageCounts: [Int: Int] = [:]
     private var transientStatusTask: Task<Void, Never>?
     private var bookmarkCheckTask: Task<Void, Never>?
+    /// Every highlight, note and bookmark, so the background count can find their pages.
+    private var allMarks: [DCHighlight] = []
+    /// Pages of marks made since the last count (on the page on screen), keyed by uuid.
+    private var recentMarkPages: [String: (spineIndex: Int, page: Int)] = [:]
+    /// The background count waits for the marks, so it can locate them while laying out each chapter.
+    private var marksLoaded = false
+    private var pendingLayout: DCBookPaginator.Layout?
 
     public init(book: DCEpubBook,
                 spineIndex: Int,
@@ -106,9 +116,13 @@ final class DCReaderViewModel: ObservableObject {
         self.showSettings = false
         self.showContents = false
         self.paginator = DCBookPaginator(book: book, userPreferences: userPreferencesProtocol)
+        paginator.locators = { [weak self] spineIndex in
+            self?.locators(in: spineIndex) ?? []
+        }
         paginator.onChange = { [weak self] in
             guard let self else { return }
             self.bookPageCounts = self.paginator.pageCounts
+            self.locatedPages = self.paginator.locatedPages
             if self.paginator.isComplete {
                 self.lastCompleteBookPageCounts = self.paginator.pageCounts
             }
@@ -300,10 +314,10 @@ final class DCReaderViewModel: ObservableObject {
             currentPageBookmarkIds = []
 
         case let .pageLayout(size):
-            let layout = DCBookPaginator.Layout(pageSize: size,
-                                                isVertical: !isPagedMode,
-                                                styleId: "\(textFont)-\(textSize)-\(appearance.theme.fontWeight)")
-            paginator.paginate(layout: layout, appearance: appearance)
+            pendingLayout = DCBookPaginator.Layout(pageSize: size,
+                                                   isVertical: !isPagedMode,
+                                                   styleId: "\(textFont)-\(textSize)-\(appearance.theme.fontWeight)")
+            startCountingIfReady()
         }
     }
 
@@ -413,8 +427,71 @@ final class DCReaderViewModel: ObservableObject {
     /// Loads the book's bookmarks from the delegate, then checks the page on screen.
     func loadBookmarks() async {
         let marks = await delegate?.highlights(for: book) ?? []
+        allMarks = marks
         bookmarks = marks.filter { $0.type == .bookMark }
         checkCurrentPageBookmarks()
+        marksLoaded = true
+        startCountingIfReady()
+    }
+
+    // MARK: Page numbers
+
+    private func startCountingIfReady() {
+        guard marksLoaded, let layout = pendingLayout else { return }
+        paginator.paginate(layout: layout, appearance: appearance)
+    }
+
+    /// Places in a chapter whose page the background count should find: TOC anchors and saved marks.
+    private func locators(in spineIndex: Int) -> [DCBookPaginator.Locator] {
+        let fragments = contentsEntries.filter { $0.spineIndex == spineIndex }.compactMap(\.fragment)
+        let marks = allMarks.filter { $0.spineIndex == spineIndex && !$0.coords.isEmpty }
+        return fragments.map { .fragment($0) } + marks.map { .coords($0.coords) }
+    }
+
+    /// Whole-book page of a page index in a chapter.
+    private func bookPage(spineIndex: Int, pageIndex: Int) -> Int? {
+        bookStartPage(of: spineIndex).map { $0 + pageIndex }
+    }
+
+    /// Page number of a Contents entry (its anchor's page, or the chapter's first page).
+    func bookPage(for entry: DCContentsEntry) -> Int? {
+        guard let spineIndex = entry.spineIndex else { return nil }
+        guard let fragment = entry.fragment else { return bookPage(spineIndex: spineIndex, pageIndex: 0) }
+        let place = DCBookPaginator.LocatedPlace(spineIndex: spineIndex, locator: .fragment(fragment))
+        return locatedPages[place].flatMap { bookPage(spineIndex: spineIndex, pageIndex: $0) }
+    }
+
+    /// Page number of a bookmark, highlight or note.
+    func bookPage(for mark: DCHighlight) -> Int? {
+        if let recent = recentMarkPages[mark.uuid] {
+            return bookPage(spineIndex: recent.spineIndex, pageIndex: recent.page)
+        }
+        let place = DCBookPaginator.LocatedPlace(spineIndex: mark.spineIndex, locator: .coords(mark.coords))
+        return locatedPages[place].flatMap { bookPage(spineIndex: mark.spineIndex, pageIndex: $0) }
+    }
+
+    /// Estimated page number of a search match, from where it falls in its chapter.
+    func bookPage(for result: DCSearchResult) -> Int? {
+        let pages = result.spineIndex == currentSelection ? totalPages : (estimatedChapterPageCount(result.spineIndex) ?? 0)
+        guard pages > 0 else { return nil }
+        let index = min(pages - 1, Int(result.chapterFraction * Double(pages)))
+        return bookPage(spineIndex: result.spineIndex, pageIndex: index)
+    }
+
+    private func estimatedChapterPageCount(_ spineIndex: Int) -> Int? {
+        Self.estimatedPageCounts(current: bookPageCounts,
+                                 previous: lastCompleteBookPageCounts,
+                                 chapterCount: book.spine.count,
+                                 currentChapter: (currentSelection, totalPages))?[spineIndex]
+    }
+
+    /// Records the page of a mark made on the page on screen (it isn't in the last count yet).
+    private func noteNewMark(_ mark: DCHighlight) {
+        allMarks.removeAll { $0.uuid == mark.uuid }
+        allMarks.append(mark)
+        if recentMarkPages[mark.uuid] == nil, mark.spineIndex == currentSelection {
+            recentMarkPages[mark.uuid] = (mark.spineIndex, currentPage - 1)
+        }
     }
 
     /// Bookmark button: removes the bookmarks on this page, or bookmarks it.
@@ -427,6 +504,7 @@ final class DCReaderViewModel: ObservableObject {
         let ids = currentPageBookmarkIds
         currentPageBookmarkIds = []
         bookmarks.removeAll { ids.contains($0.uuid) }
+        allMarks.removeAll { ids.contains($0.uuid) }
         Task {
             for uuid in ids {
                 await delegate?.deleteHighlight(uuid: uuid, book: book)
@@ -483,6 +561,7 @@ final class DCReaderViewModel: ObservableObject {
                                    coords: coords,
                                    chapterTitle: book.chapterTitle(forSpineIndex: spineIndex) ?? "")
         bookmarks.append(bookmark)
+        noteNewMark(bookmark)
         currentPageBookmarkIds = [bookmark.uuid]
         Task {
             await delegate?.save(highlight: bookmark)
@@ -620,11 +699,19 @@ extension DCReaderViewModel: DCChapterReaderContextProtocol {
     }
 
     func save(highlight: DCHighlight) async {
+        var highlight = highlight
+        // Highlights are created by the page, which doesn't know the chapter's title; lists show it.
+        if highlight.chapterTitle.isEmpty {
+            highlight.chapterTitle = book.chapterTitle(forSpineIndex: highlight.spineIndex) ?? ""
+        }
+        noteNewMark(highlight)
         await delegate?.save(highlight: highlight)
     }
 
     func deleteHighlight(uuid: String) async {
         await delegate?.deleteHighlight(uuid: uuid, book: book)
+        allMarks.removeAll { $0.uuid == uuid }
+        recentMarkPages[uuid] = nil
         if bookmarks.contains(where: { $0.uuid == uuid }) {
             bookmarks.removeAll { $0.uuid == uuid }
             currentPageBookmarkIds.removeAll { $0 == uuid }

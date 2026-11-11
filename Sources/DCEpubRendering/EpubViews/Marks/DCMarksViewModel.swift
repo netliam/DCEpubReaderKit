@@ -19,9 +19,14 @@ final class DCMarksViewModel: ObservableObject {
     private let highlightsProvider: () async -> [DCHighlight]
     private let onSelect: (DCHighlight) -> Void
 
+    /// Whole-book page of a mark, once the book has been counted.
+    let pageNumber: (DCHighlight) -> Int?
+
     init(types: [DCHighlight.MarkType] = [.highlight, .note, .bookMark],
          highlightsProvider: @escaping () async -> [DCHighlight],
+         pageNumber: @escaping (DCHighlight) -> Int? = { _ in nil },
          onSelect: @escaping (DCHighlight) -> Void) {
+        self.pageNumber = pageNumber
         self.types = types
         self.selectedType = types.first ?? .highlight
         self.highlightsProvider = highlightsProvider

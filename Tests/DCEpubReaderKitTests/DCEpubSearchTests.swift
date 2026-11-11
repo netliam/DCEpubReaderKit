@@ -98,6 +98,17 @@ struct DCEpubSearchEngineTests {
         #expect(!result.suffix.contains("\n"))
     }
 
+    @Test func resultsKnowWhereTheyFallInTheChapter() async throws {
+        let filler = String(repeating: "filler text ", count: 200)
+        let book = try makeBook(chapters: ["<p>first \(filler) last</p>"])
+        let engine = DCEpubSearchEngine(book: book)
+
+        let first = try #require(await engine.search("first").first)
+        let last = try #require(await engine.search("last").first)
+        #expect(first.chapterFraction < 0.01)
+        #expect(last.chapterFraction > 0.99)
+    }
+
     @Test func respectsTheLimitAndIgnoresBlankQueries() async throws {
         let book = try makeBook(chapters: ["<p>x x x x x</p>"])
         let engine = DCEpubSearchEngine(book: book)

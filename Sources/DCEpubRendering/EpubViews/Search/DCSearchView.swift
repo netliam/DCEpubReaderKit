@@ -24,12 +24,20 @@ struct DCSearchView: View {
                         Button {
                             viewModel.select(result)
                         } label: {
-                            Text(snippet(for: result))
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                                .multilineTextAlignment(.leading)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
+                            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                Text(snippet(for: result))
+                                    .font(.body)
+                                    .foregroundStyle(.primary)
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                if let page = viewModel.pageNumber(result) {
+                                    Text("\(page)")
+                                        .font(.subheadline.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                        .accessibilityLabel("Page \(page)")
+                                }
+                            }
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }

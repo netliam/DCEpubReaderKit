@@ -34,12 +34,16 @@ final class DCSearchViewModel: ObservableObject {
     let resultLimit = DCEpubSearchEngine.defaultResultLimit
 
     private let engine: DCEpubSearchEngine
+    /// Estimated whole-book page of a result, when the book has been counted.
+    let pageNumber: (DCSearchResult) -> Int?
     private let onSelect: (DCSearchResult, String) -> Void
     private var searchTask: Task<Void, Never>?
 
     init(engine: DCEpubSearchEngine,
+         pageNumber: @escaping (DCSearchResult) -> Int? = { _ in nil },
          onSelect: @escaping (DCSearchResult, String) -> Void) {
         self.engine = engine
+        self.pageNumber = pageNumber
         self.onSelect = onSelect
     }
 

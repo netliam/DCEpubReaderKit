@@ -108,7 +108,8 @@ extension DCReaderView {
         DCContentsView(
             entries: viewModel.contentsEntries,
             currentSpineIndex: viewModel.currentSelection,
-            startPage: { viewModel.bookStartPage(of: $0) },
+            pageNumber: { viewModel.bookPage(for: $0) },
+            markPageNumber: { viewModel.bookPage(for: $0) },
             highlightsProvider: {
                 await viewModel.allHighlights()
             },

@@ -198,6 +198,29 @@ struct DCPagedReaderControllerTests {
         #expect(await controller.pageIndex(forCoords: coords) == current.pageIndex)
     }
 
+    /// Page numbers in Contents and the marks lists come from the background count: it must find
+    /// anchors and saved positions on the same pages the reader opens them on.
+    @Test func backgroundCountLocatesAnchorsAndSavedPositions() async throws {
+        let book = try makeBook()
+        let (controller, window) = makeController(book: book)
+        defer { window.isHidden = true }
+        try await waitUntil { controller.currentPage?.isLoaded == true }
+        controller.show(spineIndex: 0, fragment: "deep")
+        let deepPage = try #require(controller.currentPage)
+        try await waitUntil { deepPage.isLoaded }
+        let coords = try #require(await deepPage.currentPageCoords())
+        let pageSize = try #require(webView(of: deepPage)?.bounds.size)
+
+        let paginator = DCBookPaginator(book: book, userPreferences: DCUserPreferencesMock())
+        paginator.locators = { spineIndex in spineIndex == 0 ? [.fragment("deep"), .coords(coords)] : [] }
+        paginator.paginate(layout: DCBookPaginator.Layout(pageSize: pageSize, isVertical: false, styleId: "test"),
+                           appearance: Self.appearance)
+        try await waitUntil(timeout: 20) { paginator.isComplete }
+
+        #expect(paginator.locatedPages[.init(spineIndex: 0, locator: .fragment("deep"))] == deepPage.pageIndex)
+        #expect(paginator.locatedPages[.init(spineIndex: 0, locator: .coords(coords))] == deepPage.pageIndex)
+    }
+
     @Test func togglingLineFocusUpdatesTheCurrentPageWithoutReloading() async throws {
         let (controller, window) = makeController(book: try makeBook())
         defer { window.isHidden = true }

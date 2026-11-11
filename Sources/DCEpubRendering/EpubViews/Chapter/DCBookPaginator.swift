@@ -25,7 +25,24 @@ final class DCBookPaginator {
         let styleId: String
     }
 
+    /// A place in a chapter whose page should be found while the chapter is laid out.
+    enum Locator: Hashable {
+        /// An element id, from a table-of-contents link (`chapter.xhtml#id`).
+        case fragment(String)
+        /// A saved position (bookmark, highlight or note).
+        case coords(String)
+    }
+
+    struct LocatedPlace: Hashable {
+        let spineIndex: Int
+        let locator: Locator
+    }
+
     private(set) var pageCounts: [Int: Int] = [:]
+    /// Page (0-based, within its chapter) of every place `locators` asked for, for the current layout.
+    private(set) var locatedPages: [LocatedPlace: Int] = [:]
+    /// Places to find in a chapter; asked when that chapter is laid out.
+    var locators: ((Int) -> [Locator])?
     /// Called after each chapter is counted.
     var onChange: (() -> Void)?
 
@@ -48,6 +65,7 @@ final class DCBookPaginator {
         task?.cancel()
         self.layout = layout
         pageCounts = [:]
+        locatedPages = [:]
         onChange?()
         task = Task { [weak self] in
             await self?.run(layout: layout, appearance: appearance)
@@ -91,8 +109,34 @@ final class DCBookPaginator {
                 rawCount = try? await webView.evaluateJavaScriptAsync("getHorizontalPageCount()")
             }
             guard !Task.isCancelled else { return }
+            await locate(locators?(spineIndex) ?? [], in: spineIndex, webView: webView, isVertical: layout.isVertical)
+            guard !Task.isCancelled else { return }
             record(Int(rawCount ?? "") ?? 1, for: spineIndex)
         }
+    }
+
+    private func locate(_ places: [Locator], in spineIndex: Int, webView: WKWebView, isVertical: Bool) async {
+        for place in Set(places) {
+            let script: String
+            switch place {
+            case .fragment(let id):
+                script = "getPageForElementId(\(Self.jsLiteral(id)), \(isVertical))"
+            case .coords(let coords):
+                script = isVertical
+                    ? "String(Math.max(0, getPageFromCoordsVertical(\(Self.jsLiteral(coords)))))"
+                    : "getPageFromCoordsHorizontal(\(Self.jsLiteral(coords)))"
+            }
+            let raw = try? await webView.evaluateJavaScriptAsync(script)
+            if let page = Int(raw ?? ""), page >= 0 {
+                locatedPages[LocatedPlace(spineIndex: spineIndex, locator: place)] = page
+            }
+        }
+    }
+
+    private static func jsLiteral(_ string: String) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: [string]),
+              let array = String(data: data, encoding: .utf8) else { return "\"\"" }
+        return String(array.dropFirst().dropLast())
     }
 
     private func record(_ count: Int, for spineIndex: Int) {

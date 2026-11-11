@@ -81,6 +81,13 @@ struct DCMarksView: View {
                 }
 
                 Spacer(minLength: 0)
+
+                if let page = viewModel.pageNumber(highlight) {
+                    Text("\(page)")
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Page \(page)")
+                }
             }
         }
         .padding(.vertical, 4)

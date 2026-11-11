@@ -20,6 +20,8 @@ public struct DCSearchResult: Sendable, Hashable, Identifiable {
     public let match: String
     /// Text after the match, whitespace collapsed (ellipsised when truncated).
     public let suffix: String
+    /// Where the match starts within its chapter's text (0 = start, 1 = end), for page estimates.
+    public let chapterFraction: Double
 
     public var id: String { "\(spineIndex)-\(occurrence)" }
 
@@ -28,7 +30,9 @@ public struct DCSearchResult: Sendable, Hashable, Identifiable {
                 chapterTitle: String,
                 prefix: String,
                 match: String,
-                suffix: String) {
+                suffix: String,
+                chapterFraction: Double = 0) {
+        self.chapterFraction = chapterFraction
         self.spineIndex = spineIndex
         self.occurrence = occurrence
         self.chapterTitle = chapterTitle
@@ -115,7 +119,9 @@ public actor DCEpubSearchEngine {
                               chapterTitle: chapterTitle,
                               prefix: prefix,
                               match: String(text[range]),
-                              suffix: suffix)
+                              suffix: suffix,
+                              chapterFraction: Double(range.lowerBound.utf16Offset(in: text))
+                                  / Double(max(text.utf16.count, 1)))
     }
 
     /// Collapses runs of whitespace to one space, keeping a single leading/trailing space so the

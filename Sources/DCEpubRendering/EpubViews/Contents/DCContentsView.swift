@@ -48,8 +48,10 @@ struct DCContentsView: View {
 
     let entries: [DCContentsEntry]
     let currentSpineIndex: Int
-    /// Whole-book page where a chapter starts, once the book has been counted.
-    let startPage: (Int) -> Int?
+    /// Whole-book page of an entry, once the book has been counted.
+    let pageNumber: (DCContentsEntry) -> Int?
+    /// Whole-book page of a bookmark or highlight, once the book has been counted.
+    let markPageNumber: (DCHighlight) -> Int?
     let highlightsProvider: () async -> [DCHighlight]
     let onSelectEntry: (DCContentsEntry) -> Void
     let onSelectMark: (DCHighlight) -> Void
@@ -75,10 +77,12 @@ struct DCContentsView: View {
                 case .bookmarks:
                     DCMarksViewBuilder().build(types: [.bookMark],
                                                highlightsProvider: highlightsProvider,
+                                               pageNumber: markPageNumber,
                                                onSelect: onSelectMark)
                 case .highlights:
                     DCMarksViewBuilder().build(types: [.highlight, .note],
                                                highlightsProvider: highlightsProvider,
+                                               pageNumber: markPageNumber,
                                                onSelect: onSelectMark)
                 }
             }
@@ -125,8 +129,7 @@ struct DCContentsView: View {
                                 .foregroundStyle(.tint)
                                 .accessibilityLabel("Current chapter")
                         }
-                        // Fragments inside a chapter would all show its first page, so only chapter starts get one.
-                        if entry.fragment == nil, let spineIndex = entry.spineIndex, let page = startPage(spineIndex) {
+                        if let page = pageNumber(entry) {
                             Text("\(page)")
                                 .font(.subheadline.monospacedDigit())
                                 .foregroundStyle(.secondary)
