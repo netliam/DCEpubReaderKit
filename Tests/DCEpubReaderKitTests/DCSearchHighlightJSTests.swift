@@ -83,6 +83,10 @@ struct DCSearchHighlightJSTests {
             window.makeKeyAndVisible()
         }
         defer { window.isHidden = true }
+        // The first wait after a window appears also covers its first frame; the reader's window is
+        // already on screen, so measure the steady state.
+        _ = try await webView.callAsyncJavaScript("return await waitForLayout(100, 2000);",
+                                                  arguments: [:], in: nil, contentWorld: .page)
         let start = Date()
         let result = try await webView.callAsyncJavaScript("return await waitForLayout(100, 2000);",
                                                            arguments: [:],

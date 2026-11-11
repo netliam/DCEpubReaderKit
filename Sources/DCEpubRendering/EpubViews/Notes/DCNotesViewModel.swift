@@ -16,23 +16,26 @@ final class DCNotesViewModel: ObservableObject {
     private var highlight: DCHighlight
     private let readerContext: any DCChapterReaderContextProtocol
     private let userPreferences: DCUserPreferencesProtocol
+    private let appearance: DCReaderAppearance
     private var saveTask: Task<Void, Never>?
 
     init(highlight: DCHighlight,
          readerContext: any DCChapterReaderContextProtocol,
-         userPreferences: DCUserPreferencesProtocol) {
+         userPreferences: DCUserPreferencesProtocol,
+         appearance: DCReaderAppearance) {
         self.highlight = highlight
         self.readerContext = readerContext
         self.userPreferences = userPreferences
+        self.appearance = appearance
         self.note = highlight.note
     }
 
     var backgroundColor: Color {
-        userPreferences.getDesktopMode().backgroundColor
+        appearance.backgroundColor
     }
 
     var textColor: Color {
-        userPreferences.getDesktopMode().textColor
+        appearance.textColor
     }
 
     func noteDidChange(_ text: String) {

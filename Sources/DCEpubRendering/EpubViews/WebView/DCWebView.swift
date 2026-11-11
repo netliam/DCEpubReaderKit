@@ -17,6 +17,8 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
 
     var viewModel: DCWebViewModelProtocol!
     var selectionMenuTask: Task<Void, Never>?
+    /// Line focus effect, present while the setting is on (see `setLineFocus(enabled:appearance:style:)`).
+    private(set) var lineFocus: DCLineFocusController?
 
     override init(frame: CGRect, configuration: WKWebViewConfiguration) {
         super.init(frame: frame, configuration: configuration)
@@ -151,6 +153,34 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
 
     override var canBecomeFirstResponder: Bool {
         return true
+    }
+}
+
+// MARK: - Selection
+
+extension DCWebView {
+    /// The selected text, trimmed, or `nil` when nothing is selected.
+    func selectedText() async -> String? {
+        let text = try? await evaluateJavaScriptAsync("window.getSelection().toString()")
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+// MARK: - Line focus
+
+extension DCWebView {
+    /// Turns line focus on or off. Call `lineFocus?.refresh(anchor:)` once the page is positioned.
+    /// - Parameter textTrailingInset: Blank space at the right edge of the web view that isn't part of
+    ///   the text column (the paged reader's column gap), so the guide outline hugs the text.
+    func setLineFocus(enabled: Bool,
+                      appearance: DCReaderAppearance,
+                      style: DCLineFocusStyle,
+                      textTrailingInset: CGFloat = 0) {
+        lineFocus?.detach()
+        lineFocus = enabled
+            ? DCLineFocusController(webView: self, appearance: appearance, style: style, textTrailingInset: textTrailingInset)
+            : nil
     }
 }
 

@@ -10,9 +10,11 @@ import DCEpubCore
 
 @MainActor
 final class DCMarksViewBuilder {
-    func build(highlightsProvider: @escaping () async -> [DCHighlight],
+    func build(types: [DCHighlight.MarkType] = [.highlight, .note, .bookMark],
+               highlightsProvider: @escaping () async -> [DCHighlight],
                onSelect: @escaping (DCHighlight) -> Void) -> DCMarksView {
         let viewModel = DCMarksViewModel(
+            types: types,
             highlightsProvider: highlightsProvider,
             onSelect: onSelect
         )

@@ -28,6 +28,7 @@ extension DCChapterWebView {
         case highlightSearchOccurrence(query: String, occurrence: Int, vertical: Bool)
         case scrollToHorizontalPage(Int)
         case scrollToVerticalPage(Int)
+        case getPageForElementId(String, vertical: Bool)
         case clearTextSelection
 
         var rawValue: String {
@@ -56,6 +57,8 @@ extension DCChapterWebView {
                 return "scrollToHorizontalPage(\(page))"
             case .scrollToVerticalPage(let page):
                 return "scrollToVerticalPage(\(page))"
+            case let .getPageForElementId(id, vertical):
+                return "getPageForElementId(\(id.jsStringLiteral), \(vertical))"
             case .clearTextSelection:
                 return "clearTextSelection()"
             }
@@ -71,6 +74,9 @@ extension DCChapterWebView {
 
         private var cachedTotalPages: Int = 0
         private var currentPageOneBased: Int = 0
+        /// Overrides the line focused after the next page settle (e.g. a search match, or the last line
+        /// when landing on a chapter's last page). Otherwise it follows the paging direction.
+        private var pendingFocusAnchor: DCLineFocusController.Anchor?
 
         let opensExternalLinks: Bool
         let spineIndex: Int
@@ -129,6 +135,7 @@ extension DCChapterWebView {
         @MainActor
         private func restoreInitialPositionIfNeeded(on webView: WKWebView) async {
             guard let jump = viewModel?.consumeInitialJump() else { return }
+            if case .search = jump { pendingFocusAnchor = .searchMatch }
             #if DEBUG
             print("[Nav] restoreInitialPosition spineIndex=\(spineIndex) orientation=\(orientation) jump=\(jump)")
             #endif
@@ -151,6 +158,13 @@ extension DCChapterWebView {
                 guard let page = Int(rawPage ?? ""), page >= 0 else { return }
                 let method: JSMethod = isHorizontal ? .scrollToHorizontalPage(page) : .scrollToVerticalPage(page)
                 _ = try? await webView.evaluateJavaScriptAsync(method.rawValue)
+            case .fragment(let id):
+                let rawPage = try? await webView.evaluateJavaScriptAsync(
+                    JSMethod.getPageForElementId(id, vertical: !isHorizontal).rawValue
+                )
+                guard let page = Int(rawPage ?? ""), page >= 0 else { return }
+                let method: JSMethod = isHorizontal ? .scrollToHorizontalPage(page) : .scrollToVerticalPage(page)
+                _ = try? await webView.evaluateJavaScriptAsync(method.rawValue)
             }
         }
 
@@ -158,6 +172,7 @@ extension DCChapterWebView {
             Task { @MainActor [weak self] in
                 guard let self else { return }
 
+                self.onAction(.pageLayout(size: webView.bounds.size))
                 // Pagination measures the body height, so web fonts must be in place first.
                 await webView.waitForLayout()
                 if let result = await applyPagination(webView),
@@ -199,6 +214,7 @@ extension DCChapterWebView {
                 if target == self.spineIndex {
                     self.setInteractivity(false, on: webView, animated: true)
                     await self.waitForFadeOut()
+                    self.pendingFocusAnchor = .last
                     await self.scrollToLastPageWihtOrientagtion(webView)
                 } else {
                     await self.scrollAndReport(.scrollToFirstPage, webView: webView)
@@ -233,6 +249,7 @@ extension DCChapterWebView {
                 #endif
                 self.setInteractivity(false, on: webView, animated: true)
                 await self.waitForFadeOut()
+                if case .search = jump { self.pendingFocusAnchor = .searchMatch }
                 await self.perform(jump, on: webView)
                 await webView.waitForLayout()
                 self.scrollViewDidEndDecelerating(webView.scrollView)
@@ -266,7 +283,10 @@ extension DCChapterWebView.Coordinator: UIScrollViewDelegate {
             viewModel?.updateCurrentPage(target: spineIndex)
         }
     }
-    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {}
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        // The focus band can't follow the text while it moves; it comes back when scrolling settles.
+        lazyWebView?.lineFocus?.suspend()
+    }
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         if !decelerate {
@@ -312,7 +332,9 @@ extension DCChapterWebView.Coordinator: UIScrollViewDelegate {
             if nearBottom { clampedZeroBased = max(0, totalPages - 1) }
         }
 
+        let previousPage = currentPageOneBased
         currentPageOneBased = clampedZeroBased + 1
+        refreshLineFocus(previousPage: previousPage)
 
         onAction(.currentPage(index: currentPageOneBased,
                               totalPages: totalPages,
@@ -331,6 +353,25 @@ extension DCChapterWebView.Coordinator: UIScrollViewDelegate {
                 )
             }
         }
+    }
+}
+
+// MARK: - Line focus
+
+private extension DCChapterWebView.Coordinator {
+    func refreshLineFocus(previousPage: Int) {
+        guard let lineFocus = lazyWebView?.lineFocus else { return }
+        let anchor: DCLineFocusController.Anchor
+        if let pendingFocusAnchor {
+            anchor = pendingFocusAnchor
+        } else if currentPageOneBased == previousPage {
+            anchor = .keep
+        } else {
+            // Paging back continues from the bottom of the previous page.
+            anchor = currentPageOneBased < previousPage ? .last : .first
+        }
+        pendingFocusAnchor = nil
+        Task { await lineFocus.refresh(anchor: anchor) }
     }
 }
 

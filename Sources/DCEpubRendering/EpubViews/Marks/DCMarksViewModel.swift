@@ -11,14 +11,19 @@ import DCEpubCore
 @MainActor
 final class DCMarksViewModel: ObservableObject {
 
-    @Published var selectedType: DCHighlight.MarkType = .highlight
+    @Published var selectedType: DCHighlight.MarkType
     @Published private(set) var highlights: [DCHighlight] = []
+    /// Mark types this list shows; a picker appears when there is more than one.
+    let types: [DCHighlight.MarkType]
 
     private let highlightsProvider: () async -> [DCHighlight]
     private let onSelect: (DCHighlight) -> Void
 
-    init(highlightsProvider: @escaping () async -> [DCHighlight],
+    init(types: [DCHighlight.MarkType] = [.highlight, .note, .bookMark],
+         highlightsProvider: @escaping () async -> [DCHighlight],
          onSelect: @escaping (DCHighlight) -> Void) {
+        self.types = types
+        self.selectedType = types.first ?? .highlight
         self.highlightsProvider = highlightsProvider
         self.onSelect = onSelect
     }

@@ -80,6 +80,22 @@ enum DCFontFamily: String {
         }
     }
 
+    /// The font at body size, for the font list in Customize.
+    var previewFont: Font {
+        switch self {
+        case .original:
+            Font.body
+        case .andada:
+            Font.fontType(.andadaPro(17))
+        case .lato:
+            Font.fontType(.lato(17))
+        case .lora:
+            Font.fontType(.lora(17))
+        case .raleway:
+            Font.fontType(.raleway(17))
+        }
+    }
+
     static let allCases: [DCFontFamily] = [
         .original,
         .andada,
@@ -89,80 +105,81 @@ enum DCFontFamily: String {
     ]
 }
 
-// MARK: - DCDesktopMode
+// MARK: - DCReaderTheme
 
-enum DCDesktopMode: String {
-    case lihgt
-    case dark
-    case red
-
-    var mode: String {
-        switch self {
-        case .lihgt:
-            ""
-        case .dark:
-            "nightMode"
-        case .red:
-            "redMode"
-        }
-    }
+/// Reading themes, modelled on Apple Books. Each has a light and a dark palette; which one is used
+/// depends on `DCReaderAppearance` (the "match system dark mode" setting and the system appearance).
+enum DCReaderTheme: String, CaseIterable {
+    case original
+    case quiet
+    case paper
+    case bold
+    case calm
+    case focus
 
     var name: String {
         switch self {
-        case .lihgt:
-            "Day"
-        case .dark:
-            "Dark"
-        case .red:
-            "Red"
+        case .original: "Original"
+        case .quiet: "Quiet"
+        case .paper: "Paper"
+        case .bold: "Bold"
+        case .calm: "Calm"
+        case .focus: "Focus"
         }
     }
 
-    var icon: String {
-        switch self {
-        case .lihgt:
-            "sun.max.fill"
-        case .dark:
-            "moon.fill"
-        case .red:
-            "Red"
+    /// (background, text) as 0xRRGGBB.
+    func palette(isDark: Bool) -> (background: UInt32, text: UInt32) {
+        switch (self, isDark) {
+        case (.original, false), (.bold, false): (0xFFFFFF, 0x000000)
+        case (.original, true), (.bold, true): (0x000000, 0xFFFFFF)
+        case (.quiet, false): (0xECECEC, 0x5E5E5E)
+        case (.quiet, true): (0x1C1C1E, 0x8D8D92)
+        case (.paper, false): (0xF6F4EF, 0x2A2A2A)
+        case (.paper, true): (0x2B2B2D, 0xE3E3E3)
+        case (.calm, false): (0xF3EAD3, 0x4A3E2C)
+        case (.calm, true): (0x4A4337, 0xEADFC8)
+        case (.focus, false): (0xFBF7EC, 0x1F1B14)
+        case (.focus, true): (0x1D1A12, 0xF1E7D2)
         }
     }
 
-    var backgroundColor: Color {
-        switch self {
-        case .lihgt:
-            Color(.backgroundLight)
-        case .dark, .red:
-            Color(.backgroundNight)
-        }
+    /// CSS font weight for body text.
+    var fontWeight: Int {
+        self == .bold ? 700 : 400
+    }
+}
+
+/// The resolved look of the reader: a theme plus whether its dark palette is in use.
+struct DCReaderAppearance: Equatable {
+    let theme: DCReaderTheme
+    let isDark: Bool
+
+    init(theme: DCReaderTheme, isDark: Bool) {
+        self.theme = theme
+        self.isDark = isDark
     }
 
-    var textColor: Color {
-        switch self {
-        case .lihgt:
-            Color(.backgroundNight)
-        case .dark, .red:
-            Color(.backgroundLight)
-        }
+    var backgroundColor: Color { Color(uiColor: uiBackgroundColor) }
+    var textColor: Color { Color(uiColor: uiTextColor) }
+    var uiBackgroundColor: UIColor { Self.color(theme.palette(isDark: isDark).background) }
+    var uiTextColor: UIColor { Self.color(theme.palette(isDark: isDark).text) }
+
+    /// Identifies everything that affects layout or colors, for rebuilding pages when it changes.
+    var id: String { "\(theme.rawValue)-\(isDark ? "dark" : "light")" }
+
+    var cssTextColor: String { Self.cssHex(theme.palette(isDark: isDark).text) }
+
+    private static func color(_ hex: UInt32) -> UIColor {
+        UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255,
+                green: CGFloat((hex >> 8) & 0xFF) / 255,
+                blue: CGFloat(hex & 0xFF) / 255,
+                alpha: 1)
     }
 
-    var iconColor: Color {
-        switch self {
-        case .lihgt:
-            Color(.backgroundLight)
-        case .dark:
-            Color(.backgroundNight)
-        case .red:
-                .red
-        }
+    private static func cssHex(_ hex: UInt32) -> String {
+        String(format: "#%06X", hex)
     }
-
-    static let allCase: [DCDesktopMode] = [
-        .lihgt,
-        .dark,
-        .red
-    ]
 }
 
 // MARK: - DCBookrOrientation

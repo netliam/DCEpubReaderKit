@@ -12,11 +12,13 @@ final class DCNotesViewBuilder {
     @MainActor
     func build(highlight: DCHighlight,
                readerContext: any DCChapterReaderContextProtocol,
-               userPreferences: DCUserPreferencesProtocol) -> DCNotesView {
+               userPreferences: DCUserPreferencesProtocol,
+               appearance: DCReaderAppearance) -> DCNotesView {
         let viewModel = DCNotesViewModel(
             highlight: highlight,
             readerContext: readerContext,
-            userPreferences: userPreferences
+            userPreferences: userPreferences,
+            appearance: appearance
         )
         return DCNotesView(viewModel: viewModel)
     }
@@ -37,7 +39,8 @@ final class DCNotesViewBuilderMock {
         let viewModel = DCNotesViewModel(
             highlight: highlight,
             readerContext: DCNotesPreviewContext(),
-            userPreferences: DCUserPreferencesMock()
+            userPreferences: DCUserPreferencesMock(),
+            appearance: DCReaderAppearance(theme: .original, isDark: false)
         )
         return DCNotesView(viewModel: viewModel)
     }

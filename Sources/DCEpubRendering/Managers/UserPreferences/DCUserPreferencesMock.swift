@@ -8,6 +8,9 @@
 import Foundation
 
 final class DCUserPreferencesMock: DCUserPreferencesProtocol {
+    var lineFocus = false
+    var lineFocusStyle: DCLineFocusStyle = .guide
+
     func setValue(key: DCUserPreferences.CacheKey, type: Any) {}
     func getFontSize() -> DCFontSize {
         .textSizeFour
@@ -17,8 +20,12 @@ final class DCUserPreferencesMock: DCUserPreferencesProtocol {
         .original
     }
 
-    func getDesktopMode() -> DCDesktopMode {
-        .lihgt
+    func getTheme() -> DCReaderTheme {
+        .original
+    }
+
+    func getFollowsSystemAppearance() -> Bool {
+        true
     }
 
     func getBookOrientation() -> DCBookrOrientation {
@@ -27,5 +34,13 @@ final class DCUserPreferencesMock: DCUserPreferencesProtocol {
 
     func getPageTransition() -> DCPageTransition {
         .curl
+    }
+
+    func getLineFocus() -> Bool {
+        lineFocus
+    }
+
+    func getLineFocusStyle() -> DCLineFocusStyle {
+        lineFocusStyle
     }
 }

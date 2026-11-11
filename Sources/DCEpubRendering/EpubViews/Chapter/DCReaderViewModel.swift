@@ -14,9 +14,14 @@ final class DCReaderViewModel: ObservableObject {
     // MARK: Config values
     @Published var textSize: CGFloat
     @Published var textFont: String
-    @Published var desktopMode: String
+    @Published var theme: String
+    @Published var followsSystemAppearance: Bool
+    /// Mirrors the system appearance (set by the view from its color scheme).
+    @Published var systemIsDark: Bool = false
     @Published var orientation: String
     @Published var pageTransition: String
+    @Published var lineFocus: Bool
+    @Published var lineFocusStyle: String
 
     // Current selected spine for the pager
     @Published var currentSelection: Int
@@ -27,9 +32,19 @@ final class DCReaderViewModel: ObservableObject {
     @Published var canTouch: Bool = true
 
     @Published var showSettings: Bool = false
-    @Published var settingsSheetHeight: CGFloat = 0
 
-    @Published var showMarks: Bool = false
+    @Published var showContents: Bool = false
+    @Published var showShare: Bool = false
+    /// What the share sheet shares: title and author, plus the selected text if any.
+    @Published private(set) var shareText: String = ""
+    /// Briefly replaces the "pages left" label (e.g. "Line Guide: On").
+    @Published private(set) var transientStatus: String?
+    /// Shows the bookmark button filled after bookmarking, until the page changes.
+    @Published private(set) var isCurrentPageBookmarked: Bool = false
+    /// Page count per spine index from the background paginator.
+    @Published private(set) var bookPageCounts: [Int: Int] = [:]
+    /// False until the first page reports its position, so the labels don't flash placeholder values.
+    @Published private(set) var hasPagePosition: Bool = false
     @Published var showSearch: Bool = false
     @Published var showNote: Bool = false
     @Published var pendingNoteHighlight: DCHighlight?
@@ -53,6 +68,8 @@ final class DCReaderViewModel: ObservableObject {
     private let initialCoords: String?
     private let userPreferencesProtocol: DCUserPreferencesProtocol
     private let delegate: DCReaderCoordsProtocol?
+    private let paginator: DCBookPaginator
+    private var transientStatusTask: Task<Void, Never>?
 
     public init(book: DCEpubBook,
                 spineIndex: Int,
@@ -70,17 +87,24 @@ final class DCReaderViewModel: ObservableObject {
         self.previousSelection = spineIndex
         self.textSize = userPreferencesProtocol.getFontSize().size
         self.textFont = userPreferencesProtocol.getFontFamily().name
-        self.desktopMode = userPreferencesProtocol.getDesktopMode().mode
+        self.theme = userPreferencesProtocol.getTheme().rawValue
+        self.followsSystemAppearance = userPreferencesProtocol.getFollowsSystemAppearance()
         self.orientation = userPreferencesProtocol.getBookOrientation().rawValue
         self.pageTransition = userPreferencesProtocol.getPageTransition().rawValue
+        self.lineFocus = userPreferencesProtocol.getLineFocus()
+        self.lineFocusStyle = userPreferencesProtocol.getLineFocusStyle().rawValue
 
         // Defaults
         self.totalPages = 1
         self.currentPage = 1
         self.canTouch = true
         self.showSettings = false
-        self.settingsSheetHeight = 0
-        self.showMarks = false
+        self.showContents = false
+        self.paginator = DCBookPaginator(book: book, userPreferences: userPreferencesProtocol)
+        paginator.onChange = { [weak self] in
+            guard let self else { return }
+            self.bookPageCounts = self.paginator.pageCounts
+        }
     }
 
     var bookId: String {
@@ -100,7 +124,7 @@ final class DCReaderViewModel: ObservableObject {
     }
 
     func readerConfigId(for idx: Int) -> String {
-        "\(idx)-\(textFont)-\(desktopMode)-\(textSize)-\(orientation)"
+        "\(idx)-\(textFont)-\(appearance.id)-\(textSize)-\(orientation)-\(lineFocus)-\(lineFocusStyle)"
     }
 
     func initialCoords(for idx: Int) -> String? {
@@ -108,12 +132,53 @@ final class DCReaderViewModel: ObservableObject {
         return initialCoords
     }
 
-    var pageInfo: String {
-        Self.pageInfo(currentPage: currentPage, totalPages: totalPages)
+    // MARK: Progress
+
+    /// "12 pages left in chapter", shown at the top of the reader.
+    var pagesLeftInChapterText: String {
+        let left = max(0, totalPages - currentPage)
+        switch left {
+        case 0: return "Last page in chapter"
+        case 1: return "1 page left in chapter"
+        default: return "\(left) pages left in chapter"
+        }
     }
 
-    static func pageInfo(currentPage: Int, totalPages: Int) -> String {
-        "página \(currentPage) de \(totalPages)"
+    /// Whole-book page number and total, once every chapter has been counted. The current chapter
+    /// uses the reader's own count, so the number always lines up with the page on screen.
+    var bookPagePosition: (page: Int, total: Int)? {
+        guard !book.spine.isEmpty, bookPageCounts.count == book.spine.count else { return nil }
+        let before = (0..<currentSelection).reduce(0) { $0 + (bookPageCounts[$1] ?? 0) }
+        let after = ((currentSelection + 1)..<book.spine.count).reduce(0) { $0 + (bookPageCounts[$1] ?? 0) }
+        return (before + currentPage, before + totalPages + after)
+    }
+
+    /// Whole-book page number where a chapter starts, once every chapter has been counted.
+    func bookStartPage(of spineIndex: Int) -> Int? {
+        guard !book.spine.isEmpty, bookPageCounts.count == book.spine.count else { return nil }
+        return (0..<spineIndex).reduce(1) { $0 + (bookPageCounts[$1] ?? 0) }
+    }
+
+    /// "415 of 832", or the chapter while the book is still being counted.
+    var progressText: String {
+        if let position = bookPagePosition {
+            return "\(position.page) of \(position.total)"
+        }
+        return "Chapter \(currentSelection + 1) of \(max(book.spine.count, 1))"
+    }
+
+    /// Fraction of the book read, for the progress bar. Estimated from the chapter until counted.
+    var readingProgress: Double {
+        if let position = bookPagePosition, position.total > 0 {
+            return Double(position.page) / Double(position.total)
+        }
+        let chapterFraction = Double(max(currentPage - 1, 0)) / Double(max(totalPages, 1))
+        return (Double(currentSelection) + chapterFraction) / Double(max(book.spine.count, 1))
+    }
+
+    /// Text for the top label: a transient status if one is showing, else pages left.
+    var topStatusText: String {
+        transientStatus ?? pagesLeftInChapterText
     }
 
     /// Horizontal mode uses the `UIPageViewController` reader; vertical keeps the scrolling chapters.
@@ -121,9 +186,14 @@ final class DCReaderViewModel: ObservableObject {
         orientation == DCBookrOrientation.horizontal.rawValue
     }
 
+    var lineFocusSettings: (enabled: Bool, style: DCLineFocusStyle) {
+        (lineFocus, DCLineFocusStyle(rawValue: lineFocusStyle) ?? .guide)
+    }
+
     /// Settings that require the paged reader to paginate again (or change transition style).
+    /// Line focus isn't one of them: it is applied to the pages already on screen.
     var pagedConfigId: String {
-        "\(textFont)-\(desktopMode)-\(textSize)-\(pageTransition)"
+        "\(textFont)-\(appearance.id)-\(textSize)-\(pageTransition)"
     }
 
     /// Coords to open `spineIndex` at: the last reported position, else the initial coords.
@@ -134,12 +204,18 @@ final class DCReaderViewModel: ObservableObject {
         return initialCoords(for: spineIndex)
     }
 
+    /// The theme's light or dark palette, depending on the system appearance and the setting.
+    var appearance: DCReaderAppearance {
+        DCReaderAppearance(theme: DCReaderTheme(rawValue: theme) ?? .original,
+                           isDark: followsSystemAppearance && systemIsDark)
+    }
+
     var backgroundColor: Color {
-        userPreferences.getDesktopMode().backgroundColor
+        appearance.backgroundColor
     }
 
     var textColor: Color {
-        userPreferences.getDesktopMode().textColor
+        appearance.textColor
     }
 
     var bookTitle: String {
@@ -181,6 +257,13 @@ final class DCReaderViewModel: ObservableObject {
         case let .spineDidChange(spineIndex):
             guard currentSelection != spineIndex else { return }
             currentSelection = spineIndex
+            isCurrentPageBookmarked = false
+
+        case let .pageLayout(size):
+            let layout = DCBookPaginator.Layout(pageSize: size,
+                                                isVertical: !isPagedMode,
+                                                styleId: "\(textFont)-\(textSize)-\(appearance.theme.rawValue)")
+            paginator.paginate(layout: layout, appearance: appearance)
         }
     }
 
@@ -198,6 +281,10 @@ final class DCReaderViewModel: ObservableObject {
                                    in spineIndex: Int) {
         guard spineIndex == currentSelection else { return }
 
+        if index != currentPage || totalPages != self.totalPages {
+            isCurrentPageBookmarked = false
+        }
+        hasPagePosition = true
         self.totalPages = totalPages
         self.currentPage = index
     }
@@ -278,6 +365,7 @@ final class DCReaderViewModel: ObservableObject {
 
     @MainActor
     func saveBookMark() {
+        isCurrentPageBookmarked = true
         if isPagedMode {
             pagedNavigator?.saveBookmark()
             return
@@ -292,7 +380,7 @@ final class DCReaderViewModel: ObservableObject {
 
     @MainActor
     func navigate(to highlight: DCHighlight) {
-        showMarks = false
+        showContents = false
         if isPagedMode {
             pagedNavigator?.show(spineIndex: highlight.spineIndex, coords: highlight.coords)
             return
@@ -319,6 +407,66 @@ final class DCReaderViewModel: ObservableObject {
         }
         pendingJumpsBySpineIndex[spineIndex] = jump
         currentSelection = spineIndex
+    }
+
+    /// Opens a table-of-contents entry at its chapter (and `#fragment`, if it has one).
+    @MainActor
+    func navigate(to entry: DCContentsEntry) {
+        showContents = false
+        guard let spineIndex = entry.spineIndex else { return }
+        if isPagedMode {
+            pagedNavigator?.show(spineIndex: spineIndex, fragment: entry.fragment)
+        } else if let fragment = entry.fragment {
+            navigate(to: .fragment(fragment), in: spineIndex)
+        } else {
+            currentSelection = spineIndex
+        }
+    }
+
+    private(set) lazy var contentsEntries: [DCContentsEntry] = DCContentsEntry.entries(for: book)
+
+    // MARK: Menu actions
+
+    func toggleLineFocus() {
+        let isOn = !lineFocus
+        userPreferences.setValue(key: .lineFocus, type: isOn)
+        lineFocus = isOn
+        showTransientStatus("Line Guide: \(isOn ? "On" : "Off")")
+    }
+
+    /// Collects what to share (title, author and the selected text, if any) and shows the share sheet.
+    @MainActor
+    func share() async {
+        let selection: String?
+        if isPagedMode {
+            selection = await pagedNavigator?.selectedText()
+        } else {
+            selection = await chapterViewModels[currentSelection]?.selectedText()
+        }
+        var byline = book.bookTitle
+        if let author = book.metadata.creators.first, !author.isEmpty {
+            byline += " by \(author)"
+        }
+        if let selection {
+            shareText = "“\(selection)”\n\n\(byline)"
+        } else {
+            shareText = byline
+        }
+        showShare = true
+    }
+
+    private func showTransientStatus(_ text: String) {
+        transientStatusTask?.cancel()
+        transientStatus = text
+        transientStatusTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            self?.transientStatus = nil
+        }
+    }
+
+    func readerDidDisappear() {
+        paginator.cancel()
     }
 
     func registerChapterViewModel(_ viewModel: DCChapterWebViewModel, for index: Int) {

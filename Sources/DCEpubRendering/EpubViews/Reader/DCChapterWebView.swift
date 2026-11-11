@@ -19,6 +19,8 @@ enum DCChapterViewAction {
     case showNote(highlight: DCHighlight)
     /// Paged reader: the page on screen now belongs to `spineIndex`.
     case spineDidChange(spineIndex: Int)
+    /// Size of the area a page is laid out in, for whole-book pagination.
+    case pageLayout(size: CGSize)
 }
 
 struct DCChapterWebView: UIViewRepresentable {
@@ -61,6 +63,9 @@ struct DCChapterWebView: UIViewRepresentable {
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.isUserInteractionEnabled = true // (scrolling stays managed by TabView disable)
 
+        webView.setLineFocus(enabled: viewModel.userPreferences.getLineFocus(),
+                             appearance: viewModel.appearance,
+                             style: viewModel.userPreferences.getLineFocusStyle())
         context.coordinator.lazyWebView = webView
 
         return webView
@@ -71,7 +76,8 @@ struct DCChapterWebView: UIViewRepresentable {
         // (webView.url is unreliable with loadHTMLString)
         if context.coordinator.currentChapterURL != viewModel.chapterURL {
             let htmlContent = DCChapterHTMLBuilder.html(pathtofile: viewModel.chapterURL.path,
-                                                        userPreferences: viewModel.userPreferences)
+                                                        userPreferences: viewModel.userPreferences,
+                                                        appearance: viewModel.appearance)
             webView.loadHTMLString(htmlContent, baseURL: viewModel.chapterURL.deletingLastPathComponent())
             context.coordinator.currentChapterURL = viewModel.chapterURL
             UIView.animate(

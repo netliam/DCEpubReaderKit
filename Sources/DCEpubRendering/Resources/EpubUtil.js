@@ -71,29 +71,50 @@
     function applyHorizontalPagination() {
         const columnGap = 20;
         const stylemargin = 0;
-        
+
         const d = document.body;
+        const scroller = document.scrollingElement || document.documentElement || d;
         const ourH = window.innerHeight;
         const ourW = window.innerWidth;
         const fullH = d.offsetHeight;
-        const pageCount = Math.max(1, Math.ceil(fullH / ourH));
-        
-        const newW = (ourW * pageCount);
+        let pageCount = Math.max(1, Math.ceil(fullH / ourH));
+
         // Leave a small safe inset to avoid clipping descenders at the bottom
         const safeBottomInset = 28;
         d.style.height = `${Math.max(0, ourH - safeBottomInset)}px`;
-        d.style.width = `${newW}px`;
         d.style.webkitColumnGap = `${columnGap}px`;
         d.style.columnGap = `${columnGap}px`;
         d.style.margin = `${stylemargin}px`;
         d.style.marginLeft = `${stylemargin}px`;
-        d.style.webkitColumnCount = pageCount;
         d.style.textAlign = 'justify';
         d.style.overflow = 'visible';
-        
+        d.style.boxSizing = 'content-box';
+
+        // n columns with n-1 gaps in a body one gap narrower than n pages puts every column exactly
+        // one page width apart (page p starts at p * innerWidth). The root element keeps the full
+        // n pages of width so the last page can be scrolled to as well.
+        // Style.css animates every property of <html> (for the old night-mode switch); without
+        // this the width below would transition in over 0.6 s instead of applying now.
+        document.documentElement.style.transition = 'none';
+        document.documentElement.style.webkitTransition = 'none';
+        function layoutColumns(count) {
+            d.style.width = `${(ourW * count) - columnGap}px`;
+            d.style.webkitColumnCount = count;
+            document.documentElement.style.minWidth = `${ourW * count}px`;
+        }
+        layoutColumns(pageCount);
+
+        // The height-based estimate can fall short; overflow columns would end short of a full page.
+        // Column width doesn't depend on the count, so re-laying out doesn't reflow the text.
+        const measured = Math.max(1, Math.ceil((scroller.scrollWidth - 1) / ourW));
+        if (measured > pageCount) {
+            pageCount = measured;
+            layoutColumns(pageCount);
+        }
+
         return String(pageCount);
     }
-    
+
     function scrollToLastHorizontalPage() {
         const d = document.scrollingElement || document.documentElement || document.body;
         const pageWidth = window.innerWidth;
@@ -159,6 +180,70 @@
         const offset = window.innerHeight * page;
         window.scrollTo(0, offset);
         return String(offset);
+    }
+
+    // 0-based page containing the element with this id (or name), for table-of-contents
+    // links like chapter.xhtml#section-2. Returns "-1" when there is no such element.
+    function getPageForElementId(id, vertical) {
+        const el = document.getElementById(id) || document.getElementsByName(id)[0];
+        if (!el) return '-1';
+        const offset = offsetOf(el);
+        const page = vertical
+            ? Math.floor(offset.top / window.innerHeight)
+            : Math.floor(offset.left / window.innerWidth);
+        return String(Math.max(0, page));
+    }
+
+    // --------------------------------------------------
+    // Line focus (measurement only; the effect is drawn natively)
+    // --------------------------------------------------
+    // Rendered text lines inside the viewport, top to bottom, in viewport coordinates (which match
+    // the web view's bounds). Returns JSON: { lines: [[x, y, width, height], ...], searchLine: n|-1 }.
+    function getVisibleLineRects() {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        const rects = [];
+        const range = document.createRange();
+        searchableTextNodes().forEach(function (node) {
+            if (!node.nodeValue.trim()) return;
+            range.selectNodeContents(node);
+            const list = range.getClientRects();
+            for (let i = 0; i < list.length; i++) {
+                const r = list[i];
+                if (r.width < 1 || r.height < 1) continue;
+                if (r.right <= 0 || r.left >= width || r.bottom <= 0 || r.top >= height) continue;
+                rects.push(r);
+            }
+        });
+        rects.sort(function (a, b) { return (a.top - b.top) || (a.left - b.left); });
+
+        // Fragments whose vertical midpoint falls inside the previous line belong to it
+        // (inline elements, superscripts, highlight spans).
+        const lines = [];
+        rects.forEach(function (r) {
+            const last = lines[lines.length - 1];
+            const mid = (r.top + r.bottom) / 2;
+            if (last && mid >= last.top && mid <= last.bottom) {
+                last.left = Math.min(last.left, r.left);
+                last.right = Math.max(last.right, r.right);
+                last.top = Math.min(last.top, r.top);
+                last.bottom = Math.max(last.bottom, r.bottom);
+            } else {
+                lines.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+            }
+        });
+
+        let searchLine = -1;
+        const mark = document.querySelector('.highlight_search');
+        if (mark) {
+            const r = mark.getBoundingClientRect();
+            const mid = (r.top + r.bottom) / 2;
+            searchLine = lines.findIndex(function (l) { return mid >= l.top && mid <= l.bottom; });
+        }
+        return JSON.stringify({
+            lines: lines.map(function (l) { return [l.left, l.top, l.right - l.left, l.bottom - l.top]; }),
+            searchLine: searchLine
+        });
     }
 
     // --------------------------------------------------
@@ -820,6 +905,8 @@
         scrollToVerticalPage,
         waitForLayout,
         highlightSearchOccurrence,
+        getVisibleLineRects,
+        getPageForElementId,
         scrollToCoordsHorizontal,
         scrollToCoordsVertical,
         applyVerticalPagination,

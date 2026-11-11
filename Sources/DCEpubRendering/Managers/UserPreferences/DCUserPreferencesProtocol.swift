@@ -11,9 +11,13 @@ protocol DCUserPreferencesProtocol {
     func setValue(key: DCUserPreferences.CacheKey, type: Any)
     func getFontSize() -> DCFontSize
     func getFontFamily() -> DCFontFamily
-    func getDesktopMode() -> DCDesktopMode
+    func getTheme() -> DCReaderTheme
+    /// Whether themes switch to their dark palette when the system is in dark mode.
+    func getFollowsSystemAppearance() -> Bool
     func getBookOrientation() -> DCBookrOrientation
     func getPageTransition() -> DCPageTransition
+    func getLineFocus() -> Bool
+    func getLineFocusStyle() -> DCLineFocusStyle
 }
 
 extension UserDefaults: DCUserPreferencesProtocol {
@@ -68,20 +72,13 @@ extension UserDefaults: DCUserPreferencesProtocol {
         }
     }
 
-    func getDesktopMode() -> DCDesktopMode {
-        guard let desktopMode = string(forKey: DCUserPreferences.CacheKey.desktopMode.rawValue) else {
-            return .lihgt
-        }
-        switch desktopMode {
-        case "":
-            return .lihgt
-        case "nightMode":
-            return .dark
-        case "redMode":
-            return .red
-        default:
-            return .lihgt
-        }
+    func getTheme() -> DCReaderTheme {
+        string(forKey: DCUserPreferences.CacheKey.theme.rawValue).flatMap(DCReaderTheme.init(rawValue:)) ?? .original
+    }
+
+    func getFollowsSystemAppearance() -> Bool {
+        // Defaults to on, like Books.
+        object(forKey: DCUserPreferences.CacheKey.followsSystemAppearance.rawValue) as? Bool ?? true
     }
 
     func getBookOrientation() -> DCBookrOrientation {
@@ -103,5 +100,20 @@ extension UserDefaults: DCUserPreferencesProtocol {
             return .curl
         }
         return DCPageTransition(rawValue: transition) ?? .curl
+    }
+
+    func getLineFocus() -> Bool {
+        bool(forKey: DCUserPreferences.CacheKey.lineFocus.rawValue)
+    }
+
+    func getLineFocusStyle() -> DCLineFocusStyle {
+        string(forKey: DCUserPreferences.CacheKey.lineFocusStyle.rawValue).flatMap(DCLineFocusStyle.init(rawValue:)) ?? .guide
+    }
+}
+
+extension DCUserPreferencesProtocol {
+    /// The appearance to render with, given whether the system is currently in dark mode.
+    func appearance(systemIsDark: Bool) -> DCReaderAppearance {
+        DCReaderAppearance(theme: getTheme(), isDark: getFollowsSystemAppearance() && systemIsDark)
     }
 }

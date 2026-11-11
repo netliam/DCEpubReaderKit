@@ -14,6 +14,7 @@ final class DCChapterWebViewBuilder {
                readAccessURL: URL,
                spineIndex: Int,
                userPreferences: DCUserPreferencesProtocol,
+               appearance: DCReaderAppearance,
                readerContext: any DCChapterReaderContextProtocol,
                onAction: @escaping (DCChapterViewAction) -> Void) -> DCChapterWebView {
         let viewModel = DCChapterWebViewModel(
@@ -21,6 +22,7 @@ final class DCChapterWebViewBuilder {
             readAccessURL: readAccessURL,
             spineIndex: spineIndex,
             userPreferences: userPreferences,
+            appearance: appearance,
             readerContext: readerContext,
             onAction: onAction
         )

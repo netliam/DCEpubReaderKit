@@ -42,6 +42,8 @@ enum DCChapterJump: Equatable {
     case coords(String)
     /// The n-th match of a search query, which is also highlighted.
     case search(query: String, occurrence: Int)
+    /// The element with this id, from a table-of-contents link.
+    case fragment(String)
 }
 
 @MainActor

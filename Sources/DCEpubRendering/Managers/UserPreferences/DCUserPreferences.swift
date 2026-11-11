@@ -13,8 +13,11 @@ final class DCUserPreferences: DCUserPreferencesProtocol {
         case bookOrientation
         case fontSize
         case fontFamily
-        case desktopMode
+        case theme
+        case followsSystemAppearance
         case pageTransition
+        case lineFocus
+        case lineFocusStyle
     }
 
     private let userPreferences: DCUserPreferencesProtocol
@@ -35,8 +38,12 @@ final class DCUserPreferences: DCUserPreferencesProtocol {
         userPreferences.getFontFamily()
     }
 
-    func getDesktopMode() -> DCDesktopMode {
-        userPreferences.getDesktopMode()
+    func getTheme() -> DCReaderTheme {
+        userPreferences.getTheme()
+    }
+
+    func getFollowsSystemAppearance() -> Bool {
+        userPreferences.getFollowsSystemAppearance()
     }
 
     func getBookOrientation() -> DCBookrOrientation {
@@ -45,5 +52,13 @@ final class DCUserPreferences: DCUserPreferencesProtocol {
 
     func getPageTransition() -> DCPageTransition {
         userPreferences.getPageTransition()
+    }
+
+    func getLineFocus() -> Bool {
+        userPreferences.getLineFocus()
+    }
+
+    func getLineFocusStyle() -> DCLineFocusStyle {
+        userPreferences.getLineFocusStyle()
     }
 }

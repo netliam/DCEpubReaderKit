@@ -20,6 +20,8 @@ extension WebKitBackedTests {
 @Suite("DCPagedReaderController")
 struct DCPagedReaderControllerTests {
 
+    static let appearance = DCReaderAppearance(theme: .original, isDark: false)
+
     private final class ReaderContext: DCChapterReaderContextProtocol {
         let currentBook: DCEpubBook
         var bookId: String { "test-book" }
@@ -39,7 +41,8 @@ struct DCPagedReaderControllerTests {
         try FileManager.default.createDirectory(at: text, withIntermediateDirectories: true)
 
         let paragraph = "<p>\(String(repeating: "Call me Ishmael. Some years ago, never mind how long precisely. ", count: 12))</p>"
-        let bodies = [String(repeating: paragraph, count: 25), "<p>Short chapter.</p>"]
+        let bodies = [String(repeating: paragraph, count: 20) + "<p id=\"deep\">Deep target paragraph.</p>" + String(repeating: paragraph, count: 5),
+                      "<p>Short chapter.</p>"]
         var manifest: [DCManifestItem] = []
         var spine: [DCSpineItem] = []
         for (index, body) in bodies.enumerated() {
@@ -57,12 +60,17 @@ struct DCPagedReaderControllerTests {
                           resourcesRoot: root)
     }
 
-    private func makeController(book: DCEpubBook, spineIndex: Int = 0) -> (DCPagedReaderController, UIWindow) {
+    private func makeController(book: DCEpubBook,
+                                spineIndex: Int = 0,
+                                lineFocus: Bool = false) -> (DCPagedReaderController, UIWindow) {
+        let preferences = DCUserPreferencesMock()
+        preferences.lineFocus = lineFocus
         let controller = DCPagedReaderController(book: book,
                                                  spineIndex: spineIndex,
                                                  coords: nil,
                                                  configId: "test",
-                                                 userPreferences: DCUserPreferencesMock(),
+                                                 appearance: Self.appearance,
+                                                 userPreferences: preferences,
                                                  readerContext: ReaderContext(book: book)) { _, _ in }
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
         window.rootViewController = controller
@@ -100,6 +108,98 @@ struct DCPagedReaderControllerTests {
 
     private func webView(of page: DCPageWebViewController) -> WKWebView? {
         page.view.subviews.compactMap { $0 as? WKWebView }.first
+    }
+
+    /// Columns used to be spaced (page width + gap / page count) apart, so text crept sideways
+    /// page by page. Every page must now start its text at the same x as the first.
+    @Test func textStartsAtTheSameXOnEveryPage() async throws {
+        let (controller, window) = makeController(book: try makeBook())
+        defer { window.isHidden = true }
+        let page = try #require(controller.currentPage)
+        try await waitUntil { page.isLoaded }
+        let webView = try #require(webView(of: page))
+        let count = try #require(page.pageCount)
+        #expect(count > 5)
+
+        func leftmostText(onPage index: Int) async throws -> Double {
+            _ = try await webView.evaluateJavaScript("scrollToHorizontalPage(\(index))")
+            let json = try await webView.evaluateJavaScript("getVisibleLineRects()") as? String ?? "{}"
+            let object = try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
+            let lines = object?["lines"] as? [[Double]] ?? []
+            return try #require(lines.map { $0[0] }.min())
+        }
+        let first = try await leftmostText(onPage: 0)
+        let later = try await leftmostText(onPage: count - 1)
+        #expect(abs(first - later) < 1, "page \(count) text starts at \(later), page 1 at \(first)")
+    }
+
+    @Test func togglingLineFocusUpdatesTheCurrentPageWithoutReloading() async throws {
+        let (controller, window) = makeController(book: try makeBook())
+        defer { window.isHidden = true }
+        let page = try #require(controller.currentPage)
+        try await waitUntil { page.isLoaded }
+        let webView = try #require(webView(of: page) as? DCWebView)
+        #expect(webView.lineFocus == nil)
+
+        controller.applyLineFocus(enabled: true, style: .guide)
+        try await waitUntil { webView.lineFocus?.focusedIndex == 0 }
+        #expect(controller.currentPage === page, "the page wasn't rebuilt")
+        #expect(self.webView(of: page) === webView)
+
+        controller.applyLineFocus(enabled: false, style: .guide)
+        #expect(webView.lineFocus == nil)
+    }
+
+    @Test func contentsFragmentOpensThePageWithThatElement() async throws {
+        let (controller, window) = makeController(book: try makeBook())
+        defer { window.isHidden = true }
+        try await waitUntil { controller.currentPage?.isLoaded == true }
+
+        controller.show(spineIndex: 0, fragment: "deep")
+        let page = try #require(controller.currentPage)
+        try await waitUntil { page.isLoaded }
+        #expect((page.pageIndex ?? 0) > 0, "the target is deep in the chapter")
+        let webView = try #require(webView(of: page))
+        let onScreen = try await webView.evaluateJavaScript(
+            "(function(){ const r = document.getElementById('deep').getBoundingClientRect(); return String(r.left >= 0 && r.left < window.innerWidth); })()"
+        ) as? String
+        #expect(onScreen == "true")
+    }
+
+    @Test func backgroundPaginatorMatchesTheReadersPageCounts() async throws {
+        let book = try makeBook()
+        let (controller, window) = makeController(book: book)
+        defer { window.isHidden = true }
+        let first = try #require(controller.currentPage)
+        try await waitUntil { first.isLoaded }
+        let pageSize = try #require(webView(of: first)?.bounds.size)
+
+        let paginator = DCBookPaginator(book: book, userPreferences: DCUserPreferencesMock())
+        paginator.paginate(layout: DCBookPaginator.Layout(pageSize: pageSize, isVertical: false, styleId: "test"),
+                           appearance: Self.appearance)
+        try await waitUntil(timeout: 20) { paginator.isComplete }
+
+        #expect(paginator.pageCounts[0] == first.pageCount)
+        #expect(paginator.pageCounts[1] == 1)
+    }
+
+    @Test func lineFocusLandsOnTheFirstLineAndTheLastWhenTurningBack() async throws {
+        let (controller, window) = makeController(book: try makeBook(), spineIndex: 1, lineFocus: true)
+        defer { window.isHidden = true }
+
+        let first = try #require(controller.currentPage)
+        try await waitUntil { first.isLoaded }
+        let firstFocus = try #require((webView(of: first) as? DCWebView)?.lineFocus)
+        #expect(!firstFocus.lines.isEmpty)
+        #expect(firstFocus.focusedIndex == 0)
+
+        // Back from chapter 1's first page lands on chapter 0's last page, focused on its last line.
+        let back = try #require(page(before: first, in: controller))
+        settle(on: back, in: controller)
+        try await waitUntil { back.isLoaded }
+        let backFocus = try #require((webView(of: back) as? DCWebView)?.lineFocus)
+        #expect(!backFocus.lines.isEmpty)
+        #expect(backFocus.focusedIndex == backFocus.lines.count - 1)
     }
 
     @Test func turnsThroughAChapterIntoTheNextAndBack() async throws {
@@ -166,7 +266,8 @@ struct DCPagedReaderControllerTests {
                                                spineIndex: 0,
                                                target: .index(1),
                                                userPreferences: DCUserPreferencesMock(),
-                                               readerContext: ReaderContext(book: try makeBook())) { _ in }
+                                               readerContext: ReaderContext(book: try makeBook()),
+                                               appearance: Self.appearance) { _ in }
         #expect(!unloaded.isLoaded)
         let third = try #require(page(after: unloaded, in: controller))
         #expect(third.spineIndex == 0)

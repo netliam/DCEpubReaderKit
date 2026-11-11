@@ -16,6 +16,8 @@ enum DCPageTarget: Equatable {
     case coords(String)
     /// The n-th match of a search query, which is also highlighted.
     case search(query: String, occurrence: Int)
+    /// The element with this id, from a table-of-contents link.
+    case fragment(String)
 
     var isSearch: Bool {
         if case .search = self { return true }
@@ -38,9 +40,6 @@ protocol DCPageWebViewControllerDelegate: AnyObject {
 final class DCPageWebViewController: UIViewController {
 
     private enum Constants {
-        static let horizontalInset: CGFloat = 24
-        static let verticalInset: CGFloat = 12
-        static let footerHeight: CGFloat = 20
         static let fadeDuration: TimeInterval = 0.25
     }
 
@@ -51,6 +50,7 @@ final class DCPageWebViewController: UIViewController {
         case scrollToHorizontalPage(Int)
         case getCoordsFirstNodeOfPageHorizontal(page: Int)
         case highlightSearchOccurrence(query: String, occurrence: Int)
+        case getPageForElementId(String)
 
         var rawValue: String {
             switch self {
@@ -66,6 +66,8 @@ final class DCPageWebViewController: UIViewController {
                 return "getCoordsFirstNodeOfPageHorizontal(\(page))"
             case let .highlightSearchOccurrence(query, occurrence):
                 return "highlightSearchOccurrence(\(query.jsStringLiteral), \(occurrence), false)"
+            case .getPageForElementId(let id):
+                return "getPageForElementId(\(id.jsStringLiteral), false)"
             }
         }
     }
@@ -95,7 +97,9 @@ final class DCPageWebViewController: UIViewController {
 
     private var webView: DCWebView?
     private var recycled: RecycledWebView?
-    private let footerLabel = UILabel()
+    private let appearance: DCReaderAppearance
+    /// Shown instead of the page when the chapter can't be resolved.
+    private let messageLabel = UILabel()
     private var hasStartedLoading = false
     /// Content offset of this page's column. Any scroll away from it (e.g. selection autoscroll) is undone.
     private var pinnedOffset: CGPoint?
@@ -105,9 +109,11 @@ final class DCPageWebViewController: UIViewController {
          target: DCPageTarget,
          userPreferences: DCUserPreferencesProtocol,
          readerContext: any DCChapterReaderContextProtocol,
+         appearance: DCReaderAppearance,
          recycled: RecycledWebView? = nil,
          onAction: @escaping (DCChapterViewAction) -> Void) {
         self.book = book
+        self.appearance = appearance
         self.spineIndex = spineIndex
         self.target = target
         self.userPreferences = userPreferences
@@ -135,7 +141,7 @@ final class DCPageWebViewController: UIViewController {
             return knownPageCount.map { min(index, $0 - 1) } ?? index
         case .last:
             return knownPageCount.map { $0 - 1 }
-        case .coords, .search:
+        case .coords, .search, .fragment:
             return nil
         }
     }
@@ -150,7 +156,7 @@ final class DCPageWebViewController: UIViewController {
             return index == pageIndex
         case .last:
             return pageIndex == pageCount - 1
-        case .coords, .search:
+        case .coords, .search, .fragment:
             return false
         }
     }
@@ -159,8 +165,8 @@ final class DCPageWebViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        let desktopMode = userPreferences.getDesktopMode()
-        view.backgroundColor = UIColor(desktopMode.backgroundColor)
+        // The page (and so the page curl) covers the whole screen; only the text is inset.
+        view.backgroundColor = appearance.uiBackgroundColor
 
         let webView = recycled?.webView ?? makeWebView()
         attach(webView)
@@ -168,24 +174,25 @@ final class DCPageWebViewController: UIViewController {
         view.addSubview(webView)
         self.webView = webView
 
-        footerLabel.translatesAutoresizingMaskIntoConstraints = false
-        footerLabel.font = .systemFont(ofSize: 14)
-        footerLabel.textColor = UIColor(desktopMode.textColor)
-        footerLabel.textAlignment = .center
-        footerLabel.numberOfLines = 0
-        view.addSubview(footerLabel)
+        messageLabel.translatesAutoresizingMaskIntoConstraints = false
+        messageLabel.font = .preferredFont(forTextStyle: .body)
+        messageLabel.adjustsFontForContentSizeCategory = true
+        messageLabel.textColor = appearance.uiTextColor
+        messageLabel.textAlignment = .center
+        messageLabel.numberOfLines = 0
+        view.addSubview(messageLabel)
 
         let guide = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
-            webView.topAnchor.constraint(equalTo: guide.topAnchor, constant: Constants.verticalInset),
-            webView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: Constants.horizontalInset),
-            webView.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -Constants.horizontalInset),
-            webView.bottomAnchor.constraint(equalTo: footerLabel.topAnchor, constant: -Constants.verticalInset),
+            webView.topAnchor.constraint(equalTo: guide.topAnchor, constant: DCReaderChrome.topInset),
+            webView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: DCReaderChrome.horizontalInset),
+            webView.trailingAnchor.constraint(equalTo: guide.trailingAnchor,
+                                              constant: -DCReaderChrome.horizontalInset + DCReaderChrome.columnGap),
+            webView.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -DCReaderChrome.bottomInset),
 
-            footerLabel.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: Constants.horizontalInset),
-            footerLabel.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -Constants.horizontalInset),
-            footerLabel.bottomAnchor.constraint(equalTo: guide.bottomAnchor),
-            footerLabel.heightAnchor.constraint(greaterThanOrEqualToConstant: Constants.footerHeight)
+            messageLabel.centerYAnchor.constraint(equalTo: guide.centerYAnchor),
+            messageLabel.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: DCReaderChrome.horizontalInset),
+            messageLabel.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -DCReaderChrome.horizontalInset)
         ])
     }
 
@@ -230,6 +237,10 @@ final class DCPageWebViewController: UIViewController {
         webView.navigationDelegate = self
         webView.scrollView.delegate = self
         webView.alpha = 0
+        webView.setLineFocus(enabled: userPreferences.getLineFocus(),
+                             appearance: appearance,
+                             style: userPreferences.getLineFocusStyle(),
+                             textTrailingInset: DCReaderChrome.columnGap)
     }
 
     /// Hands the web view over for reuse. Only loaded pages give one up, so no pagination task can
@@ -257,7 +268,7 @@ final class DCPageWebViewController: UIViewController {
         hasStartedLoading = true
 
         guard let chapterURL else {
-            footerLabel.text = "Unable to resolve chapter at spine index \(spineIndex)."
+            messageLabel.text = "Unable to resolve chapter at spine index \(spineIndex)."
             finishLoading(page: 0, count: 1)
             return
         }
@@ -270,7 +281,9 @@ final class DCPageWebViewController: UIViewController {
             return
         }
         recycled = nil
-        let html = DCChapterHTMLBuilder.html(pathtofile: chapterURL.path, userPreferences: userPreferences)
+        let html = DCChapterHTMLBuilder.html(pathtofile: chapterURL.path,
+                                             userPreferences: userPreferences,
+                                             appearance: appearance)
         webView.loadHTMLString(html, baseURL: chapterURL.deletingLastPathComponent())
     }
 
@@ -311,6 +324,9 @@ final class DCPageWebViewController: UIViewController {
                 JSMethod.highlightSearchOccurrence(query: query, occurrence: occurrence).rawValue
             )
             requestedPage = Int(rawPage ?? "") ?? 0
+        case .fragment(let id):
+            let rawPage = try? await webView.evaluateJavaScriptAsync(JSMethod.getPageForElementId(id).rawValue)
+            requestedPage = Int(rawPage ?? "") ?? 0
         }
         let page = min(max(0, requestedPage), count - 1)
 
@@ -324,15 +340,36 @@ final class DCPageWebViewController: UIViewController {
             await webView.loadHighlights()
         }
 
-        if count > 1 {
-            footerLabel.text = DCReaderViewModel.pageInfo(currentPage: page + 1, totalPages: count)
+        // The guide appears together with the page. The blur is a snapshot of the page, which is
+        // only drawn once the page is visible, so it's applied right after the page fades in.
+        let isBlur = webView.lineFocus?.style == .blur
+        if !isBlur {
+            await webView.lineFocus?.refresh(anchor: lineFocusAnchor)
         }
         finishLoading(page: page, count: count)
+        if isBlur {
+            await webView.lineFocus?.refresh(anchor: lineFocusAnchor)
+        }
+    }
+
+    /// Turning back into a chapter lands on its last page, so reading continues from its last line.
+    private var lineFocusAnchor: DCLineFocusController.Anchor {
+        switch target {
+        case .last:
+            return .last
+        case .search:
+            return .searchMatch
+        case .index, .coords, .fragment:
+            return .first
+        }
     }
 
     private func finishLoading(page: Int, count: Int) {
         pageIndex = page
         pageCount = count
+        if let size = webView?.bounds.size {
+            onAction(.pageLayout(size: size))
+        }
         UIView.animate(withDuration: Constants.fadeDuration) { [weak self] in
             self?.webView?.alpha = 1
         }
@@ -345,6 +382,22 @@ final class DCPageWebViewController: UIViewController {
     }
 
     // MARK: - Reader actions
+
+    /// Switches line focus on this page without reloading it.
+    func updateLineFocus(enabled: Bool, style: DCLineFocusStyle) {
+        guard let webView else { return }
+        webView.setLineFocus(enabled: enabled, appearance: appearance, style: style,
+                             textTrailingInset: DCReaderChrome.columnGap)
+        guard enabled, isLoaded else { return }
+        Task { [weak webView] in
+            await webView?.lineFocus?.refresh(anchor: .first)
+        }
+    }
+
+    /// The reader's current text selection on this page, if any.
+    func selectedText() async -> String? {
+        await webView?.selectedText()
+    }
 
     /// Coords of the first visible node on this page, used for reading position and bookmarks.
     func currentPageCoords() async -> String? {

@@ -43,8 +43,10 @@ Most EPUB solutions are either:
 - Notes
 
 ### 🎨 Reader customization
+- Apple Books-style reader: full-screen pages with floating controls, whole-book page numbers, Contents (table of contents, bookmarks, highlights)
 - Font size & family
-- Themes (light, dark, red…)
+- Themes: Original, Quiet, Paper, Bold, Calm, Focus, following the system dark mode
+- Line Guide: keeps the line you're reading prominent (dim or blur the rest)
 - Layout tuning (line height, margins)
 
 ### 🔍 Search

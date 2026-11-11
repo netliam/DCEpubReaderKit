@@ -14,14 +14,16 @@ struct DCMarksView: View {
 
     var body: some View {
         List {
-            Picker("Filter", selection: $viewModel.selectedType) {
-                ForEach(markTypes, id: \.self) { type in
-                    Text(title(for: type)).tag(type)
+            if viewModel.types.count > 1 {
+                Picker("Filter", selection: $viewModel.selectedType) {
+                    ForEach(viewModel.types, id: \.self) { type in
+                        Text(title(for: type)).tag(type)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
             }
-            .pickerStyle(.segmented)
-            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
-            .listRowBackground(Color.clear)
 
             if viewModel.filteredHighlights.isEmpty {
                 emptyState
@@ -37,8 +39,7 @@ struct DCMarksView: View {
                 }
             }
         }
-        .navigationTitle("Marks")
-        .navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
         .task {
             await viewModel.loadIfNeeded()
         }
@@ -58,10 +59,6 @@ struct DCMarksView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 32)
-    }
-
-    private var markTypes: [DCHighlight.MarkType] {
-        [.highlight, .note, .bookMark]
     }
 
     private func markRow(_ highlight: DCHighlight) -> some View {

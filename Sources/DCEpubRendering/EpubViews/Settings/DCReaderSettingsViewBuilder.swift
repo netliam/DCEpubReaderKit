@@ -11,17 +11,24 @@ final class DCReaderSettingsViewBuilder {
     @MainActor
     func build(fontSize: Binding<CGFloat>,
                textFont: Binding<String>,
-               desktopMode: Binding<String>,
+               theme: Binding<String>,
+               followsSystemAppearance: Binding<Bool>,
                orientation: Binding<String>,
                pageTransition: Binding<String>,
+               lineFocus: Binding<Bool>,
+               lineFocusStyle: Binding<String>,
+               systemIsDark: Bool,
                userPreferences: DCUserPreferencesProtocol) -> DCReaderSettingsView {
-        let viewModel: DCReaderSettingsViewModel = DCReaderSettingsViewModel(fontSize: fontSize,
-                                                                             textFont: textFont,
-                                                                             desktopMode: desktopMode,
-                                                                             orientation: orientation,
-                                                                             pageTransition: pageTransition,
-                                                                             userPreferences: userPreferences)
-        let view: DCReaderSettingsView = DCReaderSettingsView(viewModel: viewModel)
-        return view
+        let viewModel = DCReaderSettingsViewModel(fontSize: fontSize,
+                                                  textFont: textFont,
+                                                  theme: theme,
+                                                  followsSystemAppearance: followsSystemAppearance,
+                                                  orientation: orientation,
+                                                  pageTransition: pageTransition,
+                                                  lineFocus: lineFocus,
+                                                  lineFocusStyle: lineFocusStyle,
+                                                  systemIsDark: systemIsDark,
+                                                  userPreferences: userPreferences)
+        return DCReaderSettingsView(viewModel: viewModel)
     }
 }

@@ -8,9 +8,12 @@
 import Foundation
 
 /// Builds the chapter HTML loaded by the reader web views: injects the reader stylesheet,
-/// the JS helpers and the viewport, and tags `<html>` with the user's font/size/theme classes.
+/// the JS helpers, the viewport and the theme's text style, and tags `<html>` with the user's
+/// font/size classes.
 enum DCChapterHTMLBuilder {
-    static func html(pathtofile: String, userPreferences: DCUserPreferencesProtocol) -> String {
+    static func html(pathtofile: String,
+                     userPreferences: DCUserPreferencesProtocol,
+                     appearance: DCReaderAppearance) -> String {
         #if SWIFT_PACKAGE
         let bundle = Bundle.module
         #else
@@ -36,6 +39,7 @@ enum DCChapterHTMLBuilder {
         <script type='text/javascript' src=\"\(jquery)\"></script>\n
         <script type='text/javascript' src=\"\(jqueryhighlight)\"></script>\n
         <script type='text/javascript' src=\"\(utils)\"></script>\n
+        \(themeStyle(for: appearance))\n
         <meta name='viewport'
             content='width=device-width,
             height=device-height,
@@ -49,11 +53,27 @@ enum DCChapterHTMLBuilder {
 
         let fontName = userPreferences.getFontFamily().rawValue
         let fontSize = userPreferences.getFontSize().rawValue
-        let nightOrDayMode = userPreferences.getDesktopMode().mode
-        let classAttr = "class=\"\(fontName) \(fontSize) \(nightOrDayMode) mediaOverlayStyle0\""
+        let classAttr = "class=\"\(fontName) \(fontSize) theme-\(appearance.theme.rawValue) mediaOverlayStyle0\""
         if htmlContent.range(of: "<html class=") == nil {
             htmlContent = htmlContent.replacingOccurrences(of: "<html", with: "<html \(classAttr)")
         }
         return htmlContent
+    }
+
+    /// Text color and weight for the theme. The page background is drawn natively behind the
+    /// (transparent) web view, so the page curl and the area around the text match.
+    private static func themeStyle(for appearance: DCReaderAppearance) -> String {
+        let highlightText = appearance.isDark ? "html .highlight-yellow, html .highlight_search { color: #000 !important; }" : ""
+        return """
+        <style>
+        html, body, p, div, span, li, td, th, blockquote, h1, h2, h3, h4, h5, h6 {
+            color: \(appearance.cssTextColor) !important;
+        }
+        body { font-weight: \(appearance.theme.fontWeight) !important; }
+        /* Pagination justifies body text; headings shouldn't inherit that. Zero specificity, so the book's own rules still win. */
+        :where(h1, h2, h3, h4, h5, h6) { text-align: left; }
+        \(highlightText)
+        </style>
+        """
     }
 }

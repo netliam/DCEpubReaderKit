@@ -13,6 +13,9 @@ import DCEpubCore
 protocol DCPagedReaderNavigating: AnyObject {
     func show(spineIndex: Int, coords: String?)
     func show(spineIndex: Int, searchQuery: String, occurrence: Int)
+    func show(spineIndex: Int, fragment: String?)
+    /// Text the reader has selected on the current page, if any.
+    func selectedText() async -> String?
     func saveBookmark()
 }
 
@@ -42,6 +45,9 @@ final class DCPagedReaderController: UIViewController {
     private var pageCounts: [Int: Int] = [:]
 
     private var configId: String
+    private var appearance: DCReaderAppearance
+    private var lineFocusEnabled: Bool
+    private var lineFocusStyle: DCLineFocusStyle
     /// Start position waiting for the first layout pass.
     private var pendingStart: (spineIndex: Int, target: DCPageTarget)?
     private var lastLayoutSize: CGSize = .zero
@@ -51,11 +57,15 @@ final class DCPagedReaderController: UIViewController {
          spineIndex: Int,
          coords: String?,
          configId: String,
+         appearance: DCReaderAppearance,
          userPreferences: DCUserPreferencesProtocol,
          readerContext: any DCChapterReaderContextProtocol,
          onAction: @escaping (DCChapterViewAction, URL?) -> Void) {
         self.book = book
         self.configId = configId
+        self.appearance = appearance
+        self.lineFocusEnabled = userPreferences.getLineFocus()
+        self.lineFocusStyle = userPreferences.getLineFocusStyle()
         self.userPreferences = userPreferences
         self.readerContext = readerContext
         self.onAction = onAction
@@ -73,7 +83,7 @@ final class DCPagedReaderController: UIViewController {
     }
 
     private var backgroundColor: UIColor {
-        UIColor(userPreferences.getDesktopMode().backgroundColor)
+        appearance.uiBackgroundColor
     }
 
     // MARK: - Lifecycle
@@ -106,11 +116,27 @@ final class DCPagedReaderController: UIViewController {
     // MARK: - Configuration
 
     /// Rebuilds the pages when a setting that affects layout or the transition style changes.
-    func apply(configId: String) {
+    func apply(configId: String, appearance: DCReaderAppearance) {
         guard configId != self.configId else { return }
         self.configId = configId
+        self.appearance = appearance
         view.backgroundColor = backgroundColor
         reload()
+    }
+
+    /// Turns line focus on, off or to another style on the pages that already exist, without reloading.
+    func applyLineFocus(enabled: Bool, style: DCLineFocusStyle) {
+        guard enabled != lineFocusEnabled || style != lineFocusStyle else { return }
+        lineFocusEnabled = enabled
+        lineFocusStyle = style
+        let hosted = pageViewController?.children.compactMap { $0 as? DCPageWebViewController } ?? []
+        for page in cachedPages + hosted.filter({ page in !cachedPages.contains { $0 === page } }) {
+            page.updateLineFocus(enabled: enabled, style: style)
+        }
+        for recycled in recycledWebViews {
+            recycled.webView.setLineFocus(enabled: enabled, appearance: appearance, style: style,
+                                          textTrailingInset: DCReaderChrome.columnGap)
+        }
     }
 
     private static func target(for coords: String?) -> DCPageTarget {
@@ -194,6 +220,7 @@ final class DCPagedReaderController: UIViewController {
             target: target,
             userPreferences: userPreferences,
             readerContext: readerContext,
+            appearance: appearance,
             recycled: takeRecycledWebView(preferring: spineIndex)
         ) { [weak self] action in
             self?.onAction(action, chapterURL)
@@ -347,6 +374,15 @@ extension DCPagedReaderController: DCPagedReaderNavigating {
         rebuild(spineIndex: spineIndex, target: .search(query: searchQuery, occurrence: occurrence))
     }
 
+    func show(spineIndex: Int, fragment: String?) {
+        reloadTask?.cancel()
+        rebuild(spineIndex: spineIndex, target: fragment.map { .fragment($0) } ?? .index(0))
+    }
+
+    func selectedText() async -> String? {
+        await currentPage?.selectedText()
+    }
+
     func saveBookmark() {
         guard let current = currentPage else { return }
         let chapterURL = current.chapterURL
@@ -439,6 +475,7 @@ struct DCPagedReaderView: UIViewControllerRepresentable {
             spineIndex: viewModel.currentSelection,
             coords: viewModel.resumeCoords(for: viewModel.currentSelection),
             configId: viewModel.pagedConfigId,
+            appearance: viewModel.appearance,
             userPreferences: viewModel.userPreferences,
             readerContext: viewModel
         ) { [weak viewModel] action, chapterURL in
@@ -449,6 +486,8 @@ struct DCPagedReaderView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: DCPagedReaderController, context: Context) {
-        controller.apply(configId: viewModel.pagedConfigId)
+        controller.apply(configId: viewModel.pagedConfigId, appearance: viewModel.appearance)
+        let lineFocus = viewModel.lineFocusSettings
+        controller.applyLineFocus(enabled: lineFocus.enabled, style: lineFocus.style)
     }
 }

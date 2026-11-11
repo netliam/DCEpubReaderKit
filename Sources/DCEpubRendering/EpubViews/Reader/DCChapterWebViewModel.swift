@@ -21,6 +21,7 @@ final class DCChapterWebViewModel: ObservableObject {
     /// Index of the spine that this view represents (used for disambiguating async callbacks).
     let spineIndex: Int
     let userPreferences: DCUserPreferencesProtocol
+    let appearance: DCReaderAppearance
     let onAction: (DCChapterViewAction) -> Void
     private let readerContext: any DCChapterReaderContextProtocol
     private var hasConsumedInitialCoords = false
@@ -29,12 +30,14 @@ final class DCChapterWebViewModel: ObservableObject {
          readAccessURL: URL,
          spineIndex: Int,
          userPreferences: DCUserPreferencesProtocol,
+         appearance: DCReaderAppearance,
          readerContext: any DCChapterReaderContextProtocol,
          onAction: @escaping (DCChapterViewAction) -> Void) {
         self.chapterURL = chapterURL
         self.readAccessURL = readAccessURL
         self.spineIndex = spineIndex
         self.userPreferences = userPreferences
+        self.appearance = appearance
         self.readerContext = readerContext
         self.onAction = onAction
     }
@@ -78,5 +81,9 @@ extension DCChapterWebViewModel: DCWebViewRouterProtocol {
 
     func jump(to jump: DCChapterJump) {
         coordinator?.jump(to: jump)
+    }
+
+    func selectedText() async -> String? {
+        await coordinator?.lazyWebView?.selectedText()
     }
 }

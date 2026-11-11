@@ -7,40 +7,122 @@
 
 import SwiftUI
 
+@MainActor
 final class DCReaderSettingsViewModel: ObservableObject {
 
     @Binding var fontSize: CGFloat
     @Binding var textFont: String
-    @Binding var desktopMode: String
+    @Binding var theme: String
+    @Binding var followsSystemAppearance: Bool
     @Binding var orientation: String
     @Binding var pageTransition: String
+    @Binding var lineFocus: Bool
+    @Binding var lineFocusStyle: String
 
+    /// Whether the system is in dark mode, to preview the theme tiles in the palette that will be used.
+    let systemIsDark: Bool
     let userPreferences: DCUserPreferencesProtocol
+
+    private let fontSizeRange: ClosedRange<CGFloat> = 0...7
 
     init(fontSize: Binding<CGFloat>,
          textFont: Binding<String>,
-         desktopMode: Binding<String>,
+         theme: Binding<String>,
+         followsSystemAppearance: Binding<Bool>,
          orientation: Binding<String>,
          pageTransition: Binding<String>,
+         lineFocus: Binding<Bool>,
+         lineFocusStyle: Binding<String>,
+         systemIsDark: Bool,
          userPreferences: DCUserPreferencesProtocol) {
         self._fontSize = fontSize
         self._textFont = textFont
-        self._desktopMode = desktopMode
+        self._theme = theme
+        self._followsSystemAppearance = followsSystemAppearance
         self._orientation = orientation
         self._pageTransition = pageTransition
+        self._lineFocus = lineFocus
+        self._lineFocusStyle = lineFocusStyle
+        self.systemIsDark = systemIsDark
         self.userPreferences = userPreferences
     }
 
-    var backgroundColor: Color {
-        userPreferences.getDesktopMode().backgroundColor
+    // MARK: Text size
+
+    var canDecreaseFontSize: Bool { fontSize > fontSizeRange.lowerBound }
+    var canIncreaseFontSize: Bool { fontSize < fontSizeRange.upperBound }
+
+    func changeFontSize(by step: CGFloat) {
+        let newValue = min(max(fontSize + step, fontSizeRange.lowerBound), fontSizeRange.upperBound)
+        guard newValue != fontSize else { return }
+        userPreferences.setValue(key: .fontSize, type: newValue)
+        fontSize = newValue
     }
 
-    var textColor: Color {
-        userPreferences.getDesktopMode().textColor
+    // MARK: Themes
+
+    var selectedTheme: DCReaderTheme {
+        DCReaderTheme(rawValue: theme) ?? .original
     }
 
-    /// The page transition only applies to the horizontal (paged) reader.
-    var showsPageTransition: Bool {
-        orientation == DCBookrOrientation.horizontal.rawValue
+    /// Tiles preview the palette the reader would actually use right now.
+    func previewAppearance(for theme: DCReaderTheme) -> DCReaderAppearance {
+        DCReaderAppearance(theme: theme, isDark: followsSystemAppearance && systemIsDark)
+    }
+
+    func select(_ theme: DCReaderTheme) {
+        userPreferences.setValue(key: .theme, type: theme.rawValue)
+        self.theme = theme.rawValue
+    }
+
+    func toggleFollowsSystemAppearance() {
+        let newValue = !followsSystemAppearance
+        userPreferences.setValue(key: .followsSystemAppearance, type: newValue)
+        followsSystemAppearance = newValue
+    }
+
+    // MARK: Layout
+
+    var isScrolling: Bool {
+        orientation == DCBookrOrientation.vertical.rawValue
+    }
+
+    func setScrolling(_ scrolling: Bool) {
+        let value = (scrolling ? DCBookrOrientation.vertical : .horizontal).rawValue
+        userPreferences.setValue(key: .bookOrientation, type: value)
+        orientation = value
+    }
+
+    var selectedTransition: DCPageTransition {
+        DCPageTransition(rawValue: pageTransition) ?? .curl
+    }
+
+    func select(_ transition: DCPageTransition) {
+        userPreferences.setValue(key: .pageTransition, type: transition.rawValue)
+        pageTransition = transition.rawValue
+    }
+
+    func select(_ font: DCFontFamily) {
+        userPreferences.setValue(key: .fontFamily, type: font.rawValue)
+        textFont = font.rawValue
+    }
+
+    func isSelected(_ font: DCFontFamily) -> Bool {
+        // Older builds stored the display name rather than the raw value.
+        textFont == font.rawValue || textFont == font.name
+    }
+
+    func setLineFocus(_ isOn: Bool) {
+        userPreferences.setValue(key: .lineFocus, type: isOn)
+        lineFocus = isOn
+    }
+
+    var selectedLineFocusStyle: DCLineFocusStyle {
+        DCLineFocusStyle(rawValue: lineFocusStyle) ?? .guide
+    }
+
+    func select(_ style: DCLineFocusStyle) {
+        userPreferences.setValue(key: .lineFocusStyle, type: style.rawValue)
+        lineFocusStyle = style.rawValue
     }
 }
