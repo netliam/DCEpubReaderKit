@@ -133,6 +133,26 @@ struct DCPagedReaderControllerTests {
         #expect(abs(first - later) < 1, "page \(count) text starts at \(later), page 1 at \(first)")
     }
 
+    @Test func colorOnlyThemeChangeRecolorsWithoutReloading() async throws {
+        let (controller, window) = makeController(book: try makeBook())
+        defer { window.isHidden = true }
+        let page = try #require(controller.currentPage)
+        try await waitUntil { page.isLoaded }
+        let webView = try #require(webView(of: page))
+
+        let calm = DCReaderAppearance(theme: .calm, isDark: false)
+        controller.apply(configId: "test", appearance: calm)
+
+        #expect(controller.currentPage === page, "the page wasn't rebuilt")
+        #expect(self.webView(of: page) === webView)
+        #expect(page.view.backgroundColor == calm.uiBackgroundColor)
+        var color: String?
+        try await waitUntil {
+            Task { color = try? await webView.evaluateJavaScript("getComputedStyle(document.body).color") as? String }
+            return color == "rgb(74, 62, 44)"
+        }
+    }
+
     @Test func togglingLineFocusUpdatesTheCurrentPageWithoutReloading() async throws {
         let (controller, window) = makeController(book: try makeBook())
         defer { window.isHidden = true }

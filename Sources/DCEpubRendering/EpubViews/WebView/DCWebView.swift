@@ -156,6 +156,27 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
     }
 }
 
+// MARK: - Theme
+
+extension WKWebView {
+    /// Switches a loaded chapter to another theme by replacing its injected theme style.
+    /// Only for themes with the same font weight: colors don't change the layout, weight does.
+    func applyTheme(_ appearance: DCReaderAppearance) async {
+        let css = DCChapterHTMLBuilder.themeCSS(for: appearance)
+        guard let data = try? JSONSerialization.data(withJSONObject: [css]),
+              let array = String(data: data, encoding: .utf8) else { return }
+        let id = DCChapterHTMLBuilder.themeStyleId
+        _ = try? await evaluateJavaScriptAsync("""
+        (function () {
+            var style = document.getElementById('\(id)');
+            if (!style) { style = document.createElement('style'); style.id = '\(id)'; document.head.appendChild(style); }
+            style.textContent = \(array)[0];
+            return 'ok';
+        })()
+        """)
+    }
+}
+
 // MARK: - Selection
 
 extension DCWebView {

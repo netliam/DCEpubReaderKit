@@ -115,13 +115,24 @@ final class DCPagedReaderController: UIViewController {
 
     // MARK: - Configuration
 
-    /// Rebuilds the pages when a setting that affects layout or the transition style changes.
+    /// Rebuilds the pages when a setting that affects layout or the transition style changes, and
+    /// recolors the existing pages when only the theme's colors change.
     func apply(configId: String, appearance: DCReaderAppearance) {
-        guard configId != self.configId else { return }
-        self.configId = configId
+        let appearanceChanged = appearance != self.appearance
         self.appearance = appearance
         view.backgroundColor = backgroundColor
-        reload()
+        pageViewController?.view.backgroundColor = backgroundColor
+        if configId != self.configId {
+            self.configId = configId
+            reload()
+        } else if appearanceChanged {
+            let hosted = pageViewController?.children.compactMap { $0 as? DCPageWebViewController } ?? []
+            for page in cachedPages + hosted.filter({ page in !cachedPages.contains { $0 === page } }) {
+                page.updateAppearance(appearance)
+            }
+            // Recycled web views still carry the old colors; let new pages load fresh ones.
+            recycledWebViews = []
+        }
     }
 
     /// Turns line focus on, off or to another style on the pages that already exist, without reloading.

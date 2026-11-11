@@ -70,6 +70,8 @@ extension DCChapterWebView {
         var currentChapterURL: URL?
         var readAccessURL: URL?
         weak var lazyWebView: DCWebView?
+        /// Theme the loaded chapter is drawn in, to recolor it in place when only colors change.
+        var appliedAppearance: DCReaderAppearance?
         weak var viewModel: DCChapterWebViewModel?
 
         private var cachedTotalPages: Int = 0

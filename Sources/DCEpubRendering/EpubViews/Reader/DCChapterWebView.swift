@@ -67,11 +67,27 @@ struct DCChapterWebView: UIViewRepresentable {
                              appearance: viewModel.appearance,
                              style: viewModel.userPreferences.getLineFocusStyle())
         context.coordinator.lazyWebView = webView
+        context.coordinator.appliedAppearance = viewModel.appearance
 
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
+        // A color-only theme change (the font weight is part of the view's id) recolors in place.
+        if let applied = context.coordinator.appliedAppearance, applied != viewModel.appearance,
+           let readerWebView = webView as? DCWebView {
+            let appearance = viewModel.appearance
+            let lineFocusStyle = readerWebView.lineFocus?.style
+            context.coordinator.appliedAppearance = appearance
+            Task { [weak readerWebView] in
+                guard let readerWebView else { return }
+                await readerWebView.applyTheme(appearance)
+                if let lineFocusStyle {
+                    readerWebView.setLineFocus(enabled: true, appearance: appearance, style: lineFocusStyle)
+                    await readerWebView.lineFocus?.refresh(anchor: .keep)
+                }
+            }
+        }
         // Avoid redundant loads using a tracker on the coordinator
         // (webView.url is unreliable with loadHTMLString)
         if context.coordinator.currentChapterURL != viewModel.chapterURL {

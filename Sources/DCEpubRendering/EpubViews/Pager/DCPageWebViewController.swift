@@ -97,7 +97,7 @@ final class DCPageWebViewController: UIViewController {
 
     private var webView: DCWebView?
     private var recycled: RecycledWebView?
-    private let appearance: DCReaderAppearance
+    private var appearance: DCReaderAppearance
     /// Shown instead of the page when the chapter can't be resolved.
     private let messageLabel = UILabel()
     private var hasStartedLoading = false
@@ -382,6 +382,28 @@ final class DCPageWebViewController: UIViewController {
     }
 
     // MARK: - Reader actions
+
+    /// Recolors this page for another theme of the same font weight, without reloading it.
+    func updateAppearance(_ appearance: DCReaderAppearance) {
+        guard appearance != self.appearance else { return }
+        self.appearance = appearance
+        view.backgroundColor = appearance.uiBackgroundColor
+        messageLabel.textColor = appearance.uiTextColor
+        guard let webView else { return }
+        let lineFocusStyle = webView.lineFocus?.style
+        Task { [weak self, weak webView] in
+            guard let webView else { return }
+            await webView.applyTheme(appearance)
+            // The line focus effect is drawn in the page colors, so it is rebuilt with the new ones.
+            if let lineFocusStyle, let self {
+                webView.setLineFocus(enabled: true, appearance: appearance, style: lineFocusStyle,
+                                     textTrailingInset: DCReaderChrome.columnGap)
+                if self.isLoaded {
+                    await webView.lineFocus?.refresh(anchor: .first)
+                }
+            }
+        }
+    }
 
     /// Switches line focus on this page without reloading it.
     func updateLineFocus(enabled: Bool, style: DCLineFocusStyle) {

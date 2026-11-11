@@ -60,12 +60,18 @@ enum DCChapterHTMLBuilder {
         return htmlContent
     }
 
+    /// Id of the injected theme `<style>`, so a loaded page can switch theme without reloading.
+    static let themeStyleId = "dc-theme"
+
+    private static func themeStyle(for appearance: DCReaderAppearance) -> String {
+        "<style id=\"\(themeStyleId)\">\(themeCSS(for: appearance))</style>"
+    }
+
     /// Text color and weight for the theme. The page background is drawn natively behind the
     /// (transparent) web view, so the page curl and the area around the text match.
-    private static func themeStyle(for appearance: DCReaderAppearance) -> String {
+    static func themeCSS(for appearance: DCReaderAppearance) -> String {
         let highlightText = appearance.isDark ? "html .highlight-yellow, html .highlight_search { color: #000 !important; }" : ""
         return """
-        <style>
         html, body, p, div, span, li, td, th, blockquote, h1, h2, h3, h4, h5, h6 {
             color: \(appearance.cssTextColor) !important;
         }
@@ -73,7 +79,6 @@ enum DCChapterHTMLBuilder {
         /* Pagination justifies body text; headings shouldn't inherit that. Zero specificity, so the book's own rules still win. */
         :where(h1, h2, h3, h4, h5, h6) { text-align: left; }
         \(highlightText)
-        </style>
         """
     }
 }

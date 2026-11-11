@@ -124,7 +124,7 @@ final class DCReaderViewModel: ObservableObject {
     }
 
     func readerConfigId(for idx: Int) -> String {
-        "\(idx)-\(textFont)-\(appearance.id)-\(textSize)-\(orientation)-\(lineFocus)-\(lineFocusStyle)"
+        "\(idx)-\(textFont)-\(appearance.theme.fontWeight)-\(textSize)-\(orientation)-\(lineFocus)-\(lineFocusStyle)"
     }
 
     func initialCoords(for idx: Int) -> String? {
@@ -191,9 +191,10 @@ final class DCReaderViewModel: ObservableObject {
     }
 
     /// Settings that require the paged reader to paginate again (or change transition style).
-    /// Line focus isn't one of them: it is applied to the pages already on screen.
+    /// Line focus and theme colors aren't among them: they are applied to the pages on screen.
+    /// Only the theme's font weight (Bold) changes the layout.
     var pagedConfigId: String {
-        "\(textFont)-\(appearance.id)-\(textSize)-\(pageTransition)"
+        "\(textFont)-\(appearance.theme.fontWeight)-\(textSize)-\(pageTransition)"
     }
 
     /// Coords to open `spineIndex` at: the last reported position, else the initial coords.
