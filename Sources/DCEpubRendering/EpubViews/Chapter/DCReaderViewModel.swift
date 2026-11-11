@@ -69,6 +69,8 @@ final class DCReaderViewModel: ObservableObject {
     private let userPreferencesProtocol: DCUserPreferencesProtocol
     private let delegate: DCReaderCoordsProtocol?
     private let paginator: DCBookPaginator
+    /// The last complete count, used to estimate page numbers while a new layout is being counted.
+    private var lastCompleteBookPageCounts: [Int: Int] = [:]
     private var transientStatusTask: Task<Void, Never>?
 
     public init(book: DCEpubBook,
@@ -104,6 +106,9 @@ final class DCReaderViewModel: ObservableObject {
         paginator.onChange = { [weak self] in
             guard let self else { return }
             self.bookPageCounts = self.paginator.pageCounts
+            if self.paginator.isComplete {
+                self.lastCompleteBookPageCounts = self.paginator.pageCounts
+            }
         }
     }
 
@@ -147,16 +152,47 @@ final class DCReaderViewModel: ObservableObject {
     /// Whole-book page number and total, once every chapter has been counted. The current chapter
     /// uses the reader's own count, so the number always lines up with the page on screen.
     var bookPagePosition: (page: Int, total: Int)? {
-        guard !book.spine.isEmpty, bookPageCounts.count == book.spine.count else { return nil }
-        let before = (0..<currentSelection).reduce(0) { $0 + (bookPageCounts[$1] ?? 0) }
-        let after = ((currentSelection + 1)..<book.spine.count).reduce(0) { $0 + (bookPageCounts[$1] ?? 0) }
+        guard let counts = Self.estimatedPageCounts(current: bookPageCounts,
+                                                    previous: lastCompleteBookPageCounts,
+                                                    chapterCount: book.spine.count,
+                                                    currentChapter: (currentSelection, totalPages)) else { return nil }
+        let before = (0..<currentSelection).reduce(0) { $0 + (counts[$1] ?? 0) }
+        let after = ((currentSelection + 1)..<book.spine.count).reduce(0) { $0 + (counts[$1] ?? 0) }
         return (before + currentPage, before + totalPages + after)
+    }
+
+    /// Page counts for every chapter: the current count when complete; otherwise, while a new layout
+    /// (e.g. another text size) is being counted, chapters not counted yet are estimated from the last
+    /// complete count, scaled by how the chapters counted so far changed. `nil` before any complete count.
+    nonisolated static func estimatedPageCounts(current: [Int: Int],
+                                                previous: [Int: Int],
+                                                chapterCount: Int,
+                                                currentChapter: (index: Int, pages: Int)) -> [Int: Int]? {
+        guard chapterCount > 0 else { return nil }
+        if current.count == chapterCount { return current }
+        guard previous.count == chapterCount else { return nil }
+
+        // The chapter on screen is always known, from the reader itself.
+        var known = current
+        known[currentChapter.index] = currentChapter.pages
+        let newPages = known.values.reduce(0, +)
+        let oldPages = known.keys.reduce(0) { $0 + (previous[$1] ?? 0) }
+        let scale = oldPages > 0 ? Double(newPages) / Double(oldPages) : 1
+
+        var estimate: [Int: Int] = [:]
+        for index in 0..<chapterCount {
+            estimate[index] = known[index] ?? max(1, Int((Double(previous[index] ?? 1) * scale).rounded()))
+        }
+        return estimate
     }
 
     /// Whole-book page number where a chapter starts, once every chapter has been counted.
     func bookStartPage(of spineIndex: Int) -> Int? {
-        guard !book.spine.isEmpty, bookPageCounts.count == book.spine.count else { return nil }
-        return (0..<spineIndex).reduce(1) { $0 + (bookPageCounts[$1] ?? 0) }
+        guard let counts = Self.estimatedPageCounts(current: bookPageCounts,
+                                                    previous: lastCompleteBookPageCounts,
+                                                    chapterCount: book.spine.count,
+                                                    currentChapter: (currentSelection, totalPages)) else { return nil }
+        return (0..<spineIndex).reduce(1) { $0 + (counts[$1] ?? 0) }
     }
 
     /// "415 of 832", or the chapter while the book is still being counted.
@@ -263,7 +299,7 @@ final class DCReaderViewModel: ObservableObject {
         case let .pageLayout(size):
             let layout = DCBookPaginator.Layout(pageSize: size,
                                                 isVertical: !isPagedMode,
-                                                styleId: "\(textFont)-\(textSize)-\(appearance.theme.rawValue)")
+                                                styleId: "\(textFont)-\(textSize)-\(appearance.theme.fontWeight)")
             paginator.paginate(layout: layout, appearance: appearance)
         }
     }
