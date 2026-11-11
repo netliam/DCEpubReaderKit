@@ -11,8 +11,44 @@ import SwiftUI
 
 extension DCReaderView {
 
-    /// Close, pages left in the chapter, and bookmark.
+    /// Full controls when shown; otherwise just the chapter title, like Books while reading.
     var topChrome: some View {
+        ZStack {
+            Text(viewModel.readingTitle)
+                .font(.subheadline)
+                .foregroundStyle(viewModel.textColor.opacity(0.6))
+                .lineLimit(1)
+                .padding(.horizontal, DCReaderChrome.buttonSize + 28)
+                .opacity(showsChrome || !viewModel.hasPagePosition ? 0 : 1)
+                .accessibilityHidden(showsChrome)
+            topControls
+                .opacity(showsChrome ? 1 : 0)
+                .allowsHitTesting(showsChrome)
+                .accessibilityHidden(!showsChrome)
+        }
+        .animation(.easeInOut(duration: 0.2), value: showsChrome)
+        .frame(height: DCReaderChrome.topInset)
+    }
+
+    /// Full controls when shown; otherwise just the page number.
+    var bottomChrome: some View {
+        ZStack {
+            Text(viewModel.readingPageText)
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(viewModel.textColor.opacity(0.6))
+                .opacity(showsChrome ? 0 : 1)
+                .accessibilityHidden(showsChrome)
+            bottomControls
+                .opacity(showsChrome ? 1 : 0)
+                .allowsHitTesting(showsChrome)
+                .accessibilityHidden(!showsChrome)
+        }
+        .animation(.easeInOut(duration: 0.2), value: showsChrome)
+        .frame(height: DCReaderChrome.bottomInset)
+    }
+
+    /// Close, pages left in the chapter, and bookmark.
+    private var topControls: some View {
         HStack(spacing: 12) {
             DCChromeButton(systemImage: "xmark", accessibilityLabel: "Close") {
                 dismiss()
@@ -23,8 +59,6 @@ extension DCReaderView {
                 .font(.subheadline)
                 .foregroundStyle(viewModel.textColor.opacity(0.6))
                 .lineLimit(1)
-                .contentTransition(.opacity)
-                .animation(.easeInOut(duration: 0.2), value: viewModel.topStatusText)
             Spacer(minLength: 0)
             DCChromeButton(systemImage: viewModel.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark",
                            accessibilityLabel: viewModel.isCurrentPageBookmarked ? "Remove Bookmark" : "Add Bookmark") {
@@ -32,11 +66,10 @@ extension DCReaderView {
             }
         }
         .padding(.horizontal, 16)
-        .frame(height: DCReaderChrome.topInset)
     }
 
     /// Reading progress, page number and the reader menu.
-    var bottomChrome: some View {
+    private var bottomControls: some View {
         ZStack {
             VStack(spacing: 6) {
                 ProgressView(value: viewModel.readingProgress)
@@ -59,7 +92,6 @@ extension DCReaderView {
             }
         }
         .padding(.horizontal, 16)
-        .frame(height: DCReaderChrome.bottomInset)
     }
 
     private var readerMenu: some View {

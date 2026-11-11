@@ -33,6 +33,9 @@ final class DCReaderViewModel: ObservableObject {
 
     @Published var showSettings: Bool = false
 
+    /// Whether the full reader controls are showing. Like Books, they're hidden while reading and
+    /// toggled by tapping the page; turning the page hides them again.
+    @Published var isChromeVisible: Bool = false
     @Published var showContents: Bool = false
     @Published var showShare: Bool = false
     /// What the share sheet shares: title and author, plus the selected text if any.
@@ -234,6 +237,16 @@ final class DCReaderViewModel: ObservableObject {
         transientStatus ?? pagesLeftInChapterText
     }
 
+    /// Shown at the top while reading (controls hidden): a transient status, else the chapter title.
+    var readingTitle: String {
+        transientStatus ?? book.chapterTitle(forSpineIndex: currentSelection) ?? bookTitle
+    }
+
+    /// Shown at the bottom while reading: just the whole-book page number, once known.
+    var readingPageText: String {
+        bookPagePosition.map { "\($0.page)" } ?? ""
+    }
+
     /// Horizontal mode uses the `UIPageViewController` reader; vertical keeps the scrolling chapters.
     var isPagedMode: Bool {
         orientation == DCBookrOrientation.horizontal.rawValue
@@ -311,7 +324,11 @@ final class DCReaderViewModel: ObservableObject {
         case let .spineDidChange(spineIndex):
             guard currentSelection != spineIndex else { return }
             currentSelection = spineIndex
+            isChromeVisible = false
             currentPageBookmarkIds = []
+
+        case .toggleChrome:
+            isChromeVisible.toggle()
 
         case let .pageLayout(size):
             pendingLayout = DCBookPaginator.Layout(pageSize: size,
@@ -335,6 +352,10 @@ final class DCReaderViewModel: ObservableObject {
                                    in spineIndex: Int) {
         guard spineIndex == currentSelection else { return }
 
+        // Turning the page puts the reader back into reading mode.
+        if hasPagePosition, index != currentPage || totalPages != self.totalPages {
+            isChromeVisible = false
+        }
         hasPagePosition = true
         self.totalPages = totalPages
         self.currentPage = index

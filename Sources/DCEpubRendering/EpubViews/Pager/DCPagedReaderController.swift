@@ -29,6 +29,11 @@ protocol DCPagedReaderNavigating: AnyObject {
 /// layout-affecting setting) rebuilds the page view controller at the current reading position.
 final class DCPagedReaderController: UIViewController {
 
+    private enum Constants {
+        /// Width of the page-turning tap zones at each edge, as a fraction of the page.
+        static let edgeTapFraction: CGFloat = 0.2
+    }
+
     private let book: DCEpubBook
     private let userPreferences: DCUserPreferencesProtocol
     private let readerContext: any DCChapterReaderContextProtocol
@@ -97,6 +102,41 @@ final class DCPagedReaderController: UIViewController {
         preloadContainer.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         preloadContainer.isUserInteractionEnabled = false
         view.addSubview(preloadContainer)
+
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleChromeTap(_:)))
+        tap.cancelsTouchesInView = false
+        tap.delegate = self
+        view.addGestureRecognizer(tap)
+    }
+
+    /// Taps near the left/right edge turn the page; a tap anywhere else toggles the reader controls.
+    /// (The page view controller's own edge taps never fire: the web view takes the touch.)
+    @objc private func handleChromeTap(_ recognizer: UITapGestureRecognizer) {
+        let x = recognizer.location(in: view).x / max(view.bounds.width, 1)
+        if x > 1 - Constants.edgeTapFraction {
+            turnPage(forward: true)
+        } else if x < Constants.edgeTapFraction {
+            turnPage(forward: false)
+        } else {
+            onAction(.toggleChrome, nil)
+        }
+    }
+
+    private var isTurningPage = false
+
+    /// Turns the page with the current transition (curl or slide), like a swipe would.
+    private func turnPage(forward: Bool) {
+        guard !isTurningPage, let pageViewController, let current = currentPage else { return }
+        let next = forward
+            ? self.pageViewController(pageViewController, viewControllerAfter: current)
+            : self.pageViewController(pageViewController, viewControllerBefore: current)
+        guard let next else { return }
+        isTurningPage = true
+        pageViewController.setViewControllers([next], direction: forward ? .forward : .reverse, animated: true) { [weak self] _ in
+            // Programmatic turns don't call didFinishAnimating, so settle here.
+            self?.isTurningPage = false
+            self?.currentPageDidSettle()
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -214,6 +254,10 @@ final class DCPagedReaderController: UIViewController {
                                                       navigationOrientation: .horizontal)
         pageViewController.dataSource = self
         pageViewController.delegate = self
+        // Edge taps are handled by `handleChromeTap`; the built-in ones would double-turn if they fired.
+        pageViewController.gestureRecognizers
+            .filter { $0 is UITapGestureRecognizer }
+            .forEach { $0.isEnabled = false }
         pageViewController.view.backgroundColor = backgroundColor
 
         addChild(pageViewController)
@@ -484,6 +528,16 @@ extension DCPagedReaderController: DCPageWebViewControllerDelegate {
         for recycled in recycledWebViews where recycled.spineIndex == page.spineIndex {
             Task { await recycled.webView.removeHighlight(uuid: uuid) }
         }
+    }
+}
+
+// MARK: - UIGestureRecognizerDelegate
+
+extension DCPagedReaderController: UIGestureRecognizerDelegate {
+    // The controls tap must not block page turns, text selection, highlight taps or line focus.
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
     }
 }
 

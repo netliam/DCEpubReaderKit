@@ -21,6 +21,8 @@ enum DCChapterViewAction {
     case spineDidChange(spineIndex: Int)
     /// Size of the area a page is laid out in, for whole-book pagination.
     case pageLayout(size: CGSize)
+    /// The reader tapped the page: show or hide the reader controls.
+    case toggleChrome
 }
 
 struct DCChapterWebView: UIViewRepresentable {
@@ -68,6 +70,11 @@ struct DCChapterWebView: UIViewRepresentable {
                              style: viewModel.userPreferences.getLineFocusStyle())
         context.coordinator.lazyWebView = webView
         context.coordinator.appliedAppearance = viewModel.appearance
+        let tap = UITapGestureRecognizer(target: context.coordinator,
+                                         action: #selector(Coordinator.handleChromeTap))
+        tap.cancelsTouchesInView = false
+        tap.delegate = context.coordinator
+        webView.addGestureRecognizer(tap)
 
         return webView
     }

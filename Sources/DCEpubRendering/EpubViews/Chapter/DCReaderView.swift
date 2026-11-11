@@ -14,10 +14,16 @@ public struct DCReaderView: View {
 
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @ObservedObject var viewModel: DCReaderViewModel
 
     init(viewModel: DCReaderViewModel) {
         self.viewModel = viewModel
+    }
+
+    /// The full controls show when toggled on, and always with VoiceOver (it can't tap to reveal them).
+    var showsChrome: Bool {
+        viewModel.isChromeVisible || voiceOverEnabled
     }
 
     public var body: some View {
