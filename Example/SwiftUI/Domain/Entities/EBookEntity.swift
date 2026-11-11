@@ -21,6 +21,6 @@ struct EBookEntity {
     let updatedAt: Int64
 
     var basePath: URL? {
-        FileHelper.shared.getBooksDirectory().appending(path: self.uuid)
+        FileHelper.shared.bookDirectory(for: uuid)
     }
 }

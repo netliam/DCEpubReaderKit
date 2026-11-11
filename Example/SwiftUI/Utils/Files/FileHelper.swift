@@ -38,6 +38,12 @@ final class FileHelper {
         return booksDirectory
     }
 
+    /// Folder holding an imported book's unzipped files. The id is sanitized because identifiers
+    /// are often URNs, ISBNs or URLs; always use this so import, opening and deleting agree.
+    func bookDirectory(for bookId: String) -> URL {
+        getBooksDirectory().appendingPathComponent(sanitizeFolderName(bookId), isDirectory: true)
+    }
+
     func sanitizeFolderName(_ name: String) -> String {
         guard !name.isEmpty else { return UUID().uuidString }
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))

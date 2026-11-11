@@ -114,7 +114,6 @@ extension MainViewModel: DCReaderCoordsProtocol {
 private extension MainViewModel {
     func importBook(from url: URL) {
         do {
-            let booksRoot = FileHelper.shared.getBooksDirectory()
             let stagingBase = FileHelper.shared.getTempFolder()
                 .appendingPathComponent(FileHelper.Constants.tempFolder, isDirectory: true)
             let stagingRoot = stagingBase
@@ -131,8 +130,7 @@ private extension MainViewModel {
             )
 
             let parsedBook = try DCEpubParser.parse(from: unzipRoot)
-            let finalId = FileHelper.shared.sanitizeFolderName(parsedBook.uniqueIdentifier)
-            let finalRoot = booksRoot.appendingPathComponent(finalId, isDirectory: true)
+            let finalRoot = FileHelper.shared.bookDirectory(for: parsedBook.uniqueIdentifier)
 
             if FileManager.default.fileExists(atPath: finalRoot.path) {
                 try FileManager.default.removeItem(at: finalRoot)

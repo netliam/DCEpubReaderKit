@@ -7,6 +7,7 @@
 
 import DCEpubReaderKit
 import Foundation
+internal import Realm
 import RealmSwift
 
 protocol BookFileDatabaseProtocol {
@@ -64,8 +65,7 @@ final class BookFileDatabase: BookFileDatabaseProtocol {
         guard let book = realm.object(ofType: RBook.self, forPrimaryKey: uuid) else {
             return
         }
-        let booksRoot = FileHelper.shared.getBooksDirectory()
-        let bookFolder = booksRoot.appendingPathComponent(uuid, isDirectory: true)
+        let bookFolder = FileHelper.shared.bookDirectory(for: uuid)
         if FileManager.default.fileExists(atPath: bookFolder.path) {
             try FileManager.default.removeItem(at: bookFolder)
         }

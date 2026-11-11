@@ -7,6 +7,7 @@
 
 import DCEpubReaderKit
 import Foundation
+internal import Realm
 import RealmSwift
 
 protocol BookPositionDatabaseProtocol {
