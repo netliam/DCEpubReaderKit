@@ -39,7 +39,7 @@ Most EPUB solutions are either:
 ### 🖍️ User interaction
 - Text selection
 - Highlights
-- Bookmarks (planned)
+- Bookmarks
 - Notes
 
 ### 🎨 Reader customization
@@ -52,7 +52,7 @@ Most EPUB solutions are either:
 
 ### 💾 Persistence
 - Reading position tracking
-- Highlight/bookmark persistence (engine ready, storage up to integrator)
+- Highlight/bookmark persistence: use the built-in `DCJSONReaderStore`, or plug in your own storage
 
 ---
 
@@ -100,10 +100,32 @@ Then:
 - [ ] Vertical pagination
 - [x] Horizontal pagination
 - [x] Highlights & bookmarks
-- [ ] State persistence helpers
+- [x] State persistence helpers
 - [ ] Search engine
 - [ ] Performance optimizations (large books)
 - [ ] Accessibility improvements (VoiceOver, dynamic type)
+
+---
+
+## 💾 Using the built-in store
+
+`DCJSONReaderStore` keeps highlights, notes, bookmarks and the reading position in one JSON file per book
+(`Application Support/DCEpubReaderKit` by default). Wrap it in `DCStoreReaderDelegate` and pass that as the reader's delegate:
+
+```swift
+let store = DCJSONReaderStore()
+let position = await store.position(bookId: book.uniqueIdentifier)
+
+DCReaderViewBuilder.build(
+    book,
+    spineIndex: position?.spineIndex ?? 0,
+    initialCoords: position?.coords,
+    delegate: DCStoreReaderDelegate(store: store)
+)
+```
+
+To use your own storage, implement `DCReaderCoordsProtocol` directly (as the example app does with Realm),
+or implement `DCHighlightStoreProtocol` + `DCReadingPositionStoreProtocol` and keep `DCStoreReaderDelegate`.
 
 ---
 
