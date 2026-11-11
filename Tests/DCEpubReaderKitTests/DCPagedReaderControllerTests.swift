@@ -181,6 +181,23 @@ struct DCPagedReaderControllerTests {
         #expect(controller.currentPage?.target == afterFirst.target)
     }
 
+    /// A bookmark stores the first text of its page; coming back to that page must resolve it to the
+    /// same page, which is what shows the bookmark button filled.
+    @Test func bookmarkPositionResolvesToThePageItWasMadeOn() async throws {
+        let (controller, window) = makeController(book: try makeBook())
+        defer { window.isHidden = true }
+        var current = try #require(controller.currentPage)
+        try await waitUntil { current.isLoaded }
+        for _ in 0..<3 {
+            let next = try #require(page(after: current, in: controller))
+            settle(on: next, in: controller)
+            try await waitUntil { next.isLoaded }
+            current = next
+        }
+        let coords = try #require(await current.currentPageCoords())
+        #expect(await controller.pageIndex(forCoords: coords) == current.pageIndex)
+    }
+
     @Test func togglingLineFocusUpdatesTheCurrentPageWithoutReloading() async throws {
         let (controller, window) = makeController(book: try makeBook())
         defer { window.isHidden = true }

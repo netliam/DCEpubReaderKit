@@ -20,8 +20,8 @@ import DCEpubCore
 ///                           delegate: DCStoreReaderDelegate(store: store))
 /// ```
 ///
-/// Reading positions go to `save(position:)`; bookmarks are saved as `DCHighlight`s of type `.bookMark`
-/// so they show up in the marks list.
+/// Reading positions go to `save(position:)`. Bookmarks, highlights and notes are `DCHighlight`s the
+/// reader saves and deletes through `save(highlight:)` / `deleteHighlight(uuid:book:)`.
 @MainActor
 public final class DCStoreReaderDelegate: DCReaderCoordsProtocol {
 
@@ -38,22 +38,15 @@ public final class DCStoreReaderDelegate: DCReaderCoordsProtocol {
                              coords: String,
                              chapterURL: URL?,
                              isBookMark: Bool) {
+        // The reader saves bookmarks itself (as `.bookMark` highlights); only positions are stored here.
+        guard !isBookMark else { return }
         let chapterId = (chapterURL ?? book.chapterURL(forSpineIndex: spineIndex))?.lastPathComponent ?? ""
-        let bookId = book.uniqueIdentifier
-        let chapterTitle = book.chapterTitle(forSpineIndex: spineIndex) ?? ""
+        let position = DCReadingPosition(bookId: book.uniqueIdentifier,
+                                         spineIndex: spineIndex,
+                                         coords: coords,
+                                         chapterId: chapterId)
         Task {
-            if isBookMark {
-                await saveBookmark(bookId: bookId,
-                                   spineIndex: spineIndex,
-                                   coords: coords,
-                                   chapterId: chapterId,
-                                   chapterTitle: chapterTitle)
-            } else {
-                await store.save(position: DCReadingPosition(bookId: bookId,
-                                                             spineIndex: spineIndex,
-                                                             coords: coords,
-                                                             chapterId: chapterId))
-            }
+            await store.save(position: position)
         }
     }
 
@@ -71,29 +64,5 @@ public final class DCStoreReaderDelegate: DCReaderCoordsProtocol {
 
     public func highlights(for book: DCEpubBook, chapterId: String) async -> [DCHighlight]? {
         await store.highlights(bookId: book.uniqueIdentifier, chapterId: chapterId)
-    }
-
-    private func saveBookmark(bookId: String,
-                              spineIndex: Int,
-                              coords: String,
-                              chapterId: String,
-                              chapterTitle: String) async {
-        let existing = await store.highlights(bookId: bookId)
-        // Tapping bookmark twice on the same page refreshes the existing bookmark instead of duplicating it.
-        if var bookmark = existing.first(where: {
-            $0.type == .bookMark && $0.spineIndex == spineIndex && $0.coords == coords
-        }) {
-            bookmark.dateUpdated = Date().timeIntervalSince1970
-            await store.save(bookmark)
-            return
-        }
-        await store.save(DCHighlight(uuid: UUID().uuidString,
-                                     bookId: bookId,
-                                     chapterId: chapterId,
-                                     spineIndex: spineIndex,
-                                     type: .bookMark,
-                                     text: "",
-                                     coords: coords,
-                                     chapterTitle: chapterTitle))
     }
 }

@@ -31,9 +31,7 @@ final class BookHighlightDatabase: BookHighlightDatabaseProtocol {
         mark.chapterTitle = highlight.chapterTitle
         mark.spineIndex = highlight.spineIndex
         mark.textNote = highlight.note
-        mark.type = highlight.type == .highlight
-            ? RBookMark.MarkType.hightLihgt.rawValue
-            : RBookMark.MarkType.note.rawValue
+        mark.type = RBookMark.MarkType(highlight.type).rawValue
         mark.dateCreated = Int64(highlight.dateCreated * 1000)
         mark.dateUpdated = Int64(highlight.dateUpdated * 1000)
         try realm.write {
@@ -43,8 +41,7 @@ final class BookHighlightDatabase: BookHighlightDatabaseProtocol {
 
     func highlights(bookId: String) throws -> [DCHighlight] {
         let realm = try Realm()
-        let types = [RBookMark.MarkType.hightLihgt.rawValue,
-                     RBookMark.MarkType.note.rawValue]
+        let types = RBookMark.MarkType.highlightTypes
         return realm.objects(RBookMark.self)
             .filter("bookId == %@ AND type IN %@", bookId, types)
             .sorted(by: [
@@ -56,8 +53,7 @@ final class BookHighlightDatabase: BookHighlightDatabaseProtocol {
 
     func highlights(bookId: String, chapterId: String) throws -> [DCHighlight] {
         let realm = try Realm()
-        let types = [RBookMark.MarkType.hightLihgt.rawValue,
-                     RBookMark.MarkType.note.rawValue]
+        let types = RBookMark.MarkType.highlightTypes
         return realm.objects(RBookMark.self)
             .filter("bookId == %@ AND chapterId == %@ AND type IN %@",
                     bookId, chapterId, types)
@@ -81,7 +77,7 @@ private extension RBookMark {
             bookId: bookId,
             chapterId: chapterId,
             spineIndex: spineIndex,
-            type: type == RBookMark.MarkType.hightLihgt.rawValue ? .highlight : .note,
+            type: RBookMark.MarkType(rawValue: type)?.highlightType ?? .highlight,
             text: text,
             coords: coords,
             note: textNote,
@@ -89,5 +85,26 @@ private extension RBookMark {
             dateCreated: Double(dateCreated) / 1000,
             dateUpdated: Double(dateUpdated) / 1000
         )
+    }
+}
+
+private extension RBookMark.MarkType {
+    /// Types stored for `DCHighlight`s (highlights, notes and bookmarks), as opposed to the last position.
+    static let highlightTypes = [RBookMark.MarkType.hightLihgt, .note, .bookMark].map(\.rawValue)
+
+    init(_ type: DCHighlight.MarkType) {
+        switch type {
+        case .highlight: self = .hightLihgt
+        case .note: self = .note
+        case .bookMark: self = .bookMark
+        }
+    }
+
+    var highlightType: DCHighlight.MarkType {
+        switch self {
+        case .note: .note
+        case .bookMark: .bookMark
+        case .hightLihgt, .lastPosition: .highlight
+        }
     }
 }

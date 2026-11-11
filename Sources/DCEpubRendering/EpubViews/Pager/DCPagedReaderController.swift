@@ -16,6 +16,8 @@ protocol DCPagedReaderNavigating: AnyObject {
     func show(spineIndex: Int, fragment: String?)
     /// Text the reader has selected on the current page, if any.
     func selectedText() async -> String?
+    /// Page (0-based, in its chapter) that a saved position falls on, using the page on screen.
+    func pageIndex(forCoords coords: String) async -> Int?
     func saveBookmark()
 }
 
@@ -399,6 +401,10 @@ extension DCPagedReaderController: DCPagedReaderNavigating {
 
     func selectedText() async -> String? {
         await currentPage?.selectedText()
+    }
+
+    func pageIndex(forCoords coords: String) async -> Int? {
+        await currentPage?.pageIndex(forCoords: coords)
     }
 
     func saveBookmark() {

@@ -74,7 +74,8 @@ extension MainViewModel: DCReaderCoordsProtocol {
         chapterURL: URL?,
         isBookMark: Bool
     ) {
-        guard let chapterURL else { return }
+        // Bookmarks are saved by the reader through save(highlight:); only positions are stored here.
+        guard let chapterURL, !isBookMark else { return }
         print(
             """
             spineIndex: \(spineIndex) -

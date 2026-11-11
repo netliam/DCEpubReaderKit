@@ -75,6 +75,9 @@ public struct DCReaderView: View {
         .onChange(of: viewModel.currentSelection) { _ in
             viewModel.handleSelectionDidChange()
         }
+        .task {
+            await viewModel.loadBookmarks()
+        }
         .onDisappear {
             viewModel.readerDidDisappear()
         }

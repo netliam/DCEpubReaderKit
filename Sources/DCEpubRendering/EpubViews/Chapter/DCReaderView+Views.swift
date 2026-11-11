@@ -27,8 +27,8 @@ extension DCReaderView {
                 .animation(.easeInOut(duration: 0.2), value: viewModel.topStatusText)
             Spacer(minLength: 0)
             DCChromeButton(systemImage: viewModel.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark",
-                           accessibilityLabel: viewModel.isCurrentPageBookmarked ? "Bookmarked" : "Add Bookmark") {
-                viewModel.saveBookMark()
+                           accessibilityLabel: viewModel.isCurrentPageBookmarked ? "Remove Bookmark" : "Add Bookmark") {
+                viewModel.toggleBookmark()
             }
         }
         .padding(.horizontal, 16)

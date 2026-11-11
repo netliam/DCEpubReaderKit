@@ -416,6 +416,13 @@ final class DCPageWebViewController: UIViewController {
         }
     }
 
+    /// Page (0-based) of this chapter that a saved position falls on.
+    func pageIndex(forCoords coords: String) async -> Int? {
+        guard let webView, isLoaded, !coords.isEmpty else { return nil }
+        let raw = try? await webView.evaluateJavaScriptAsync(JSMethod.getPageFromCoordsHorizontal(coords).rawValue)
+        return Int(raw ?? "")
+    }
+
     /// The reader's current text selection on this page, if any.
     func selectedText() async -> String? {
         await webView?.selectedText()

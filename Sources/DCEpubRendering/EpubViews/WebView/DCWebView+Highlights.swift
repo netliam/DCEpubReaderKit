@@ -163,7 +163,8 @@ extension DCWebView {
     // Injects all persisted highlights for the current chapter into the DOM.
     // Sorted descending by coords (legacy behavior) to avoid offset shifts.
     func loadHighlights() async {
-        let highlights = await viewModel.loadHighlights()
+        // Bookmarks mark a page, not a passage, so they aren't drawn in the text.
+        let highlights = await viewModel.loadHighlights().filter { $0.type != .bookMark }
         let sorted = highlights.sorted { $0.coords > $1.coords }
         for h in sorted {
             await applyHighlight(h)

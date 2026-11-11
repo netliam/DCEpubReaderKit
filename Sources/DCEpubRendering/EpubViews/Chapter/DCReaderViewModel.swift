@@ -39,8 +39,10 @@ final class DCReaderViewModel: ObservableObject {
     @Published private(set) var shareText: String = ""
     /// Briefly replaces the "pages left" label (e.g. "Line Guide: On").
     @Published private(set) var transientStatus: String?
-    /// Shows the bookmark button filled after bookmarking, until the page changes.
-    @Published private(set) var isCurrentPageBookmarked: Bool = false
+    /// The book's bookmarks, loaded when the reader opens and kept in sync as they are added/removed.
+    @Published private(set) var bookmarks: [DCHighlight] = []
+    /// Bookmarks that land on the page on screen (usually zero or one).
+    @Published private(set) var currentPageBookmarkIds: [String] = []
     /// Page count per spine index from the background paginator.
     @Published private(set) var bookPageCounts: [Int: Int] = [:]
     /// False until the first page reports its position, so the labels don't flash placeholder values.
@@ -72,6 +74,7 @@ final class DCReaderViewModel: ObservableObject {
     /// The last complete count, used to estimate page numbers while a new layout is being counted.
     private var lastCompleteBookPageCounts: [Int: Int] = [:]
     private var transientStatusTask: Task<Void, Never>?
+    private var bookmarkCheckTask: Task<Void, Never>?
 
     public init(book: DCEpubBook,
                 spineIndex: Int,
@@ -294,7 +297,7 @@ final class DCReaderViewModel: ObservableObject {
         case let .spineDidChange(spineIndex):
             guard currentSelection != spineIndex else { return }
             currentSelection = spineIndex
-            isCurrentPageBookmarked = false
+            currentPageBookmarkIds = []
 
         case let .pageLayout(size):
             let layout = DCBookPaginator.Layout(pageSize: size,
@@ -318,12 +321,10 @@ final class DCReaderViewModel: ObservableObject {
                                    in spineIndex: Int) {
         guard spineIndex == currentSelection else { return }
 
-        if index != currentPage || totalPages != self.totalPages {
-            isCurrentPageBookmarked = false
-        }
         hasPagePosition = true
         self.totalPages = totalPages
         self.currentPage = index
+        checkCurrentPageBookmarks()
     }
 
     @MainActor
@@ -338,7 +339,9 @@ final class DCReaderViewModel: ObservableObject {
                               chapterURL: URL?,
                               isBookMark: Bool) {
         guard spineIndex == currentSelection else { return }
-        if !isBookMark {
+        if isBookMark {
+            addBookmark(spineIndex: spineIndex, coords: coords, chapterURL: chapterURL)
+        } else {
             lastPosition = (spineIndex, coords)
         }
         if let chapterURL {
@@ -401,8 +404,92 @@ final class DCReaderViewModel: ObservableObject {
     }
 
     @MainActor
+    // MARK: Bookmarks
+
+    var isCurrentPageBookmarked: Bool {
+        !currentPageBookmarkIds.isEmpty
+    }
+
+    /// Loads the book's bookmarks from the delegate, then checks the page on screen.
+    func loadBookmarks() async {
+        let marks = await delegate?.highlights(for: book) ?? []
+        bookmarks = marks.filter { $0.type == .bookMark }
+        checkCurrentPageBookmarks()
+    }
+
+    /// Bookmark button: removes the bookmarks on this page, or bookmarks it.
+    @MainActor
+    func toggleBookmark() {
+        guard isCurrentPageBookmarked else {
+            saveBookMark()
+            return
+        }
+        let ids = currentPageBookmarkIds
+        currentPageBookmarkIds = []
+        bookmarks.removeAll { ids.contains($0.uuid) }
+        Task {
+            for uuid in ids {
+                await delegate?.deleteHighlight(uuid: uuid, book: book)
+            }
+        }
+    }
+
+    /// Finds which bookmarks of this chapter land on the page on screen, by resolving their saved
+    /// position in the live page (so it follows the current font, size and layout).
+    func checkCurrentPageBookmarks() {
+        bookmarkCheckTask?.cancel()
+        let spineIndex = currentSelection
+        let pageIndex = currentPage - 1
+        let candidates = bookmarks.filter { $0.spineIndex == spineIndex }
+        guard !candidates.isEmpty else {
+            currentPageBookmarkIds = []
+            return
+        }
+        bookmarkCheckTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            var onPage: [String] = []
+            for bookmark in candidates {
+                if await self.pageIndex(forCoords: bookmark.coords, in: spineIndex) == pageIndex {
+                    onPage.append(bookmark.uuid)
+                }
+            }
+            guard !Task.isCancelled, spineIndex == self.currentSelection, pageIndex == self.currentPage - 1 else { return }
+            self.currentPageBookmarkIds = onPage
+        }
+    }
+
+    /// Page (0-based, within the chapter) that a saved position falls on in the reader on screen.
+    @MainActor
+    private func pageIndex(forCoords coords: String, in spineIndex: Int) async -> Int? {
+        if isPagedMode {
+            return await pagedNavigator?.pageIndex(forCoords: coords)
+        }
+        return await chapterViewModels[spineIndex]?.pageIndex(forCoords: coords)
+    }
+
+    /// Saves a bookmark for the page on screen at `coords` (the first text on the page).
+    private func addBookmark(spineIndex: Int, coords: String, chapterURL: URL?) {
+        if let existing = bookmarks.first(where: { $0.spineIndex == spineIndex && $0.coords == coords }) {
+            currentPageBookmarkIds = [existing.uuid]
+            return
+        }
+        let chapterId = (chapterURL ?? book.chapterURL(forSpineIndex: spineIndex))?.lastPathComponent ?? ""
+        let bookmark = DCHighlight(uuid: UUID().uuidString,
+                                   bookId: bookId,
+                                   chapterId: chapterId,
+                                   spineIndex: spineIndex,
+                                   type: .bookMark,
+                                   text: "",
+                                   coords: coords,
+                                   chapterTitle: book.chapterTitle(forSpineIndex: spineIndex) ?? "")
+        bookmarks.append(bookmark)
+        currentPageBookmarkIds = [bookmark.uuid]
+        Task {
+            await delegate?.save(highlight: bookmark)
+        }
+    }
+
     func saveBookMark() {
-        isCurrentPageBookmarked = true
         if isPagedMode {
             pagedNavigator?.saveBookmark()
             return
@@ -538,6 +625,10 @@ extension DCReaderViewModel: DCChapterReaderContextProtocol {
 
     func deleteHighlight(uuid: String) async {
         await delegate?.deleteHighlight(uuid: uuid, book: book)
+        if bookmarks.contains(where: { $0.uuid == uuid }) {
+            bookmarks.removeAll { $0.uuid == uuid }
+            currentPageBookmarkIds.removeAll { $0 == uuid }
+        }
     }
 
     func highlights(for chapterId: String) async -> [DCHighlight] {

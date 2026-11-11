@@ -86,4 +86,13 @@ extension DCChapterWebViewModel: DCWebViewRouterProtocol {
     func selectedText() async -> String? {
         await coordinator?.lazyWebView?.selectedText()
     }
+
+    /// Page (0-based) of this chapter that a saved position falls on, in the scrolling layout.
+    func pageIndex(forCoords coords: String) async -> Int? {
+        guard let webView = coordinator?.lazyWebView, !coords.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: [coords]),
+              let literal = String(data: data, encoding: .utf8) else { return nil }
+        let raw = try? await webView.evaluateJavaScriptAsync("String(Math.max(0, getPageFromCoordsVertical(\(literal)[0])))")
+        return Int(raw ?? "")
+    }
 }
