@@ -194,3 +194,34 @@ enum DCBookrOrientation: String {
         .horizontal
     ]
 }
+
+// MARK: - DCPageTransition
+
+/// Page turn animation used by the horizontal (paged) reader.
+enum DCPageTransition: String {
+    case curl
+    case slide
+
+    var name: String {
+        switch self {
+        case .curl:
+            "Curl"
+        case .slide:
+            "Slide"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .curl:
+            "book"
+        case .slide:
+            "rectangle.on.rectangle"
+        }
+    }
+
+    static let allCases: [DCPageTransition] = [
+        .curl,
+        .slide
+    ]
+}

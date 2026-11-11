@@ -13,6 +13,7 @@ final class DCReaderSettingsViewModel: ObservableObject {
     @Binding var textFont: String
     @Binding var desktopMode: String
     @Binding var orientation: String
+    @Binding var pageTransition: String
 
     let userPreferences: DCUserPreferencesProtocol
 
@@ -20,11 +21,13 @@ final class DCReaderSettingsViewModel: ObservableObject {
          textFont: Binding<String>,
          desktopMode: Binding<String>,
          orientation: Binding<String>,
+         pageTransition: Binding<String>,
          userPreferences: DCUserPreferencesProtocol) {
         self._fontSize = fontSize
         self._textFont = textFont
         self._desktopMode = desktopMode
         self._orientation = orientation
+        self._pageTransition = pageTransition
         self.userPreferences = userPreferences
     }
 
@@ -34,5 +37,10 @@ final class DCReaderSettingsViewModel: ObservableObject {
 
     var textColor: Color {
         userPreferences.getDesktopMode().textColor
+    }
+
+    /// The page transition only applies to the horizontal (paged) reader.
+    var showsPageTransition: Bool {
+        orientation == DCBookrOrientation.horizontal.rawValue
     }
 }

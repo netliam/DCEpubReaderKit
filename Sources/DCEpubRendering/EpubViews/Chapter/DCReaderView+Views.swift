@@ -82,6 +82,7 @@ extension DCReaderView {
                 textFont: $viewModel.textFont,
                 desktopMode: $viewModel.desktopMode,
                 orientation: $viewModel.orientation,
+                pageTransition: $viewModel.pageTransition,
                 userPreferences: viewModel.userPreferences
             )
             .fixedSize(horizontal: false, vertical: true)

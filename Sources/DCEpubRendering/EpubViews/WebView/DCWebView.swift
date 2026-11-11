@@ -53,8 +53,11 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
 
     private func injectMessageHandlers() {
         teardown()
-        configuration.userContentController.add(self, name: Constants.selectionChanged)
-        configuration.userContentController.add(self, name: Constants.highlightTapped)
+        // WKUserContentController retains its handlers strongly, so registering `self` directly
+        // would keep every web view alive. The weak proxy lets `deinit` (and `teardown`) run.
+        let handler = DCWeakScriptMessageHandler(target: self)
+        configuration.userContentController.add(handler, name: Constants.selectionChanged)
+        configuration.userContentController.add(handler, name: Constants.highlightTapped)
     }
 
     // MARK: - WKScriptMessageHandler
@@ -148,6 +151,22 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
 
     override var canBecomeFirstResponder: Bool {
         return true
+    }
+}
+
+// MARK: - Weak script message handler
+
+@MainActor
+private final class DCWeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    weak var target: WKScriptMessageHandler?
+
+    init(target: WKScriptMessageHandler) {
+        self.target = target
+    }
+
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        target?.userContentController(userContentController, didReceive: message)
     }
 }
 

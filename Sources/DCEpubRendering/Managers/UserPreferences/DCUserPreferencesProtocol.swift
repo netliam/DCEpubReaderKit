@@ -13,6 +13,7 @@ protocol DCUserPreferencesProtocol {
     func getFontFamily() -> DCFontFamily
     func getDesktopMode() -> DCDesktopMode
     func getBookOrientation() -> DCBookrOrientation
+    func getPageTransition() -> DCPageTransition
 }
 
 extension UserDefaults: DCUserPreferencesProtocol {
@@ -95,5 +96,12 @@ extension UserDefaults: DCUserPreferencesProtocol {
         default:
             return .horizontal
         }
+    }
+
+    func getPageTransition() -> DCPageTransition {
+        guard let transition = string(forKey: DCUserPreferences.CacheKey.pageTransition.rawValue) else {
+            return .curl
+        }
+        return DCPageTransition(rawValue: transition) ?? .curl
     }
 }

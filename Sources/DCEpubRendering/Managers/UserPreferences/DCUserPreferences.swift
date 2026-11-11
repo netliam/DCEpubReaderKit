@@ -14,6 +14,7 @@ final class DCUserPreferences: DCUserPreferencesProtocol {
         case fontSize
         case fontFamily
         case desktopMode
+        case pageTransition
     }
 
     private let userPreferences: DCUserPreferencesProtocol
@@ -40,5 +41,9 @@ final class DCUserPreferences: DCUserPreferencesProtocol {
 
     func getBookOrientation() -> DCBookrOrientation {
         userPreferences.getBookOrientation()
+    }
+
+    func getPageTransition() -> DCPageTransition {
+        userPreferences.getPageTransition()
     }
 }

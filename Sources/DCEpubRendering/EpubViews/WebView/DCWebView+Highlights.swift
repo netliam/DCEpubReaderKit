@@ -166,14 +166,19 @@ extension DCWebView {
         let highlights = await viewModel.loadHighlights()
         let sorted = highlights.sorted { $0.coords > $1.coords }
         for h in sorted {
-            let cssClass = h.type == .highlight ? "highlight-yellow" : "highlight-underline"
-            let js = JSMethod.highlightCoords(
-                coords: h.coords,
-                cssClass: cssClass,
-                uuid: h.uuid,
-                text: h.text
-            ).rawValue
-            _ = try? await self.evaluateJavaScriptAsync(js)
+            await applyHighlight(h)
         }
+    }
+
+    // Injects a single highlight into the DOM without touching the store.
+    func applyHighlight(_ highlight: DCHighlight) async {
+        let cssClass = highlight.type == .highlight ? "highlight-yellow" : "highlight-underline"
+        let js = JSMethod.highlightCoords(
+            coords: highlight.coords,
+            cssClass: cssClass,
+            uuid: highlight.uuid,
+            text: highlight.text
+        ).rawValue
+        _ = try? await self.evaluateJavaScriptAsync(js)
     }
 }

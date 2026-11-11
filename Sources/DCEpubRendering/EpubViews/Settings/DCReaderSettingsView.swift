@@ -107,6 +107,33 @@ struct DCReaderSettingsView: View {
                     .buttonStyle(.plain)
                 }
             }
+            if viewModel.showsPageTransition {
+                HStack(spacing: 0) {
+                    ForEach(DCPageTransition.allCases, id: \.self) { transition in
+                        Button {
+                            viewModel.userPreferences.setValue(key: .pageTransition,
+                                                               type: transition.rawValue)
+                            viewModel.pageTransition = transition.rawValue
+                        } label: {
+                            HStack(spacing: 0) {
+                                Text(transition.name)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(viewModel.textColor)
+                                    .padding()
+                                Image(systemName: transition.iconName)
+                                    .foregroundStyle(viewModel.textColor)
+                            }
+                            .frame(height: 54)
+                            .frame(maxWidth: .infinity)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(Color.gray, lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
         .padding(.top, 16)
     }
@@ -127,6 +154,9 @@ struct DCReaderSettingsView: View {
                 ""
             ),
             orientation: .constant(
+                ""
+            ),
+            pageTransition: .constant(
                 ""
             ),
             userPreferences: DCUserPreferencesMock()

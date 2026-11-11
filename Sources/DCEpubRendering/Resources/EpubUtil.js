@@ -122,6 +122,24 @@
     }
     
     function scrollToFirstHorizontalPage() { return scrollToFirstPage(); }
+
+    // Paged reader helpers. They return Strings because the native bridge only reads String results.
+    function getHorizontalPageCount() {
+        const d = document.scrollingElement || document.documentElement || document.body;
+        const pageWidth = window.innerWidth;
+        // Subtract 1px so an exact multiple of the page width doesn't round up to an extra page.
+        return String(Math.max(1, Math.ceil((d.scrollWidth - 1) / pageWidth)));
+    }
+
+    function getPageFromCoordsHorizontal(mark) {
+        return String(Math.max(0, getPageFromCoords(mark)));
+    }
+
+    function scrollToHorizontalPage(page) {
+        const offset = window.innerWidth * page;
+        window.scrollTo(offset, 0);
+        return String(offset);
+    }
     
     function applyVerticalPagination() {
         let margin_top = 40;
@@ -706,6 +724,9 @@
         applyHorizontalPagination,
         scrollToLastHorizontalPage,
         scrollToFirstHorizontalPage,
+        getHorizontalPageCount,
+        getPageFromCoordsHorizontal,
+        scrollToHorizontalPage,
         scrollToCoordsHorizontal,
         scrollToCoordsVertical,
         applyVerticalPagination,

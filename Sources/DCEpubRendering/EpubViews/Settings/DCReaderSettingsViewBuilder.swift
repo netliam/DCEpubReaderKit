@@ -13,11 +13,13 @@ final class DCReaderSettingsViewBuilder {
                textFont: Binding<String>,
                desktopMode: Binding<String>,
                orientation: Binding<String>,
+               pageTransition: Binding<String>,
                userPreferences: DCUserPreferencesProtocol) -> DCReaderSettingsView {
         let viewModel: DCReaderSettingsViewModel = DCReaderSettingsViewModel(fontSize: fontSize,
                                                                              textFont: textFont,
                                                                              desktopMode: desktopMode,
                                                                              orientation: orientation,
+                                                                             pageTransition: pageTransition,
                                                                              userPreferences: userPreferences)
         let view: DCReaderSettingsView = DCReaderSettingsView(viewModel: viewModel)
         return view

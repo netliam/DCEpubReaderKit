@@ -33,7 +33,7 @@ Most EPUB solutions are either:
 ### 🧭 Navigation
 - Chapter-based navigation
 - Table of contents generation
-- Horizontal pagination ✅
+- Horizontal pagination ✅ (`UIPageViewController`, curl or slide transition)
 - Vertical pagination 🚧
 
 ### 🖍️ User interaction

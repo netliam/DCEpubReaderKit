@@ -16,6 +16,7 @@ final class DCReaderViewModel: ObservableObject {
     @Published var textFont: String
     @Published var desktopMode: String
     @Published var orientation: String
+    @Published var pageTransition: String
 
     // Current selected spine for the pager
     @Published var currentSelection: Int
@@ -34,6 +35,10 @@ final class DCReaderViewModel: ObservableObject {
 
     var chapterViewModels: [Int: DCChapterWebViewModel] = [:]
     private var pendingNavigationCoordsBySpineIndex: [Int: String] = [:]
+    /// Paged (horizontal) reader, set when it is created.
+    weak var pagedNavigator: DCPagedReaderNavigating?
+    /// Last reported reading position, used to resume when the reader is rebuilt.
+    private var lastPosition: (spineIndex: Int, coords: String)?
 
     private let book: DCEpubBook
     private let spineIndex: Int
@@ -59,6 +64,7 @@ final class DCReaderViewModel: ObservableObject {
         self.textFont = userPreferencesProtocol.getFontFamily().name
         self.desktopMode = userPreferencesProtocol.getDesktopMode().mode
         self.orientation = userPreferencesProtocol.getBookOrientation().rawValue
+        self.pageTransition = userPreferencesProtocol.getPageTransition().rawValue
 
         // Defaults
         self.totalPages = 1
@@ -95,7 +101,29 @@ final class DCReaderViewModel: ObservableObject {
     }
 
     var pageInfo: String {
+        Self.pageInfo(currentPage: currentPage, totalPages: totalPages)
+    }
+
+    static func pageInfo(currentPage: Int, totalPages: Int) -> String {
         "página \(currentPage) de \(totalPages)"
+    }
+
+    /// Horizontal mode uses the `UIPageViewController` reader; vertical keeps the scrolling chapters.
+    var isPagedMode: Bool {
+        orientation == DCBookrOrientation.horizontal.rawValue
+    }
+
+    /// Settings that require the paged reader to paginate again (or change transition style).
+    var pagedConfigId: String {
+        "\(textFont)-\(desktopMode)-\(textSize)-\(pageTransition)"
+    }
+
+    /// Coords to open `spineIndex` at: the last reported position, else the initial coords.
+    func resumeCoords(for spineIndex: Int) -> String? {
+        if let lastPosition, lastPosition.spineIndex == spineIndex {
+            return lastPosition.coords
+        }
+        return initialCoords(for: spineIndex)
     }
 
     var backgroundColor: Color {
@@ -141,6 +169,10 @@ final class DCReaderViewModel: ObservableObject {
         case let .showNote(highlight):
             pendingNoteHighlight = highlight
             showNote = true
+
+        case let .spineDidChange(spineIndex):
+            guard currentSelection != spineIndex else { return }
+            currentSelection = spineIndex
         }
     }
 
@@ -174,6 +206,9 @@ final class DCReaderViewModel: ObservableObject {
                               chapterURL: URL?,
                               isBookMark: Bool) {
         guard spineIndex == currentSelection else { return }
+        if !isBookMark {
+            lastPosition = (spineIndex, coords)
+        }
         if let chapterURL {
             delegate?.handleCoords(
                 book: book,
@@ -214,6 +249,8 @@ final class DCReaderViewModel: ObservableObject {
         defer {
             previousSelection = currentSelection
         }
+        // The paged reader drives `currentSelection` itself and positions its own pages.
+        guard !isPagedMode else { return }
 
         // Only consume the pending coord when the chapter viewModel is already available.
         // If the chapter has not yet registered its viewModel (first-time load), the coord
@@ -233,6 +270,10 @@ final class DCReaderViewModel: ObservableObject {
 
     @MainActor
     func saveBookMark() {
+        if isPagedMode {
+            pagedNavigator?.saveBookmark()
+            return
+        }
         chapterViewModels[currentSelection]?.saveBookmark()
     }
 
@@ -244,6 +285,11 @@ final class DCReaderViewModel: ObservableObject {
     @MainActor
     func navigate(to highlight: DCHighlight) {
         showMarks = false
+
+        if isPagedMode {
+            pagedNavigator?.show(spineIndex: highlight.spineIndex, coords: highlight.coords)
+            return
+        }
 
         if highlight.spineIndex == currentSelection {
             chapterViewModels[currentSelection]?.scrollToHighlight(coords: highlight.coords)

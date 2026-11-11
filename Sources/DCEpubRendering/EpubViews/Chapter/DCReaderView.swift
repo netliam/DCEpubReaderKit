@@ -25,35 +25,41 @@ public struct DCReaderView: View {
         ZStack {
             viewModel.backgroundColor
                 .ignoresSafeArea(edges: .all)
-            TabView(selection: $viewModel.currentSelection) {
-                ForEach(0..<viewModel.bookSpines.count, id: \.self) { idx in
-                    Group {
-                        if let chapterURL = viewModel.chapterURL(for: idx) {
-                            VStack {
-                                chapterView(chapterURL, idx: idx)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 12)
-                                .id(viewModel.readerConfigId(for: idx))
-                                if viewModel.totalPages > 1 {
-                                    Text(viewModel.pageInfo)
-                                        .font(.system(size: 14))
+            Group {
+                if viewModel.isPagedMode {
+                    DCPagedReaderView(viewModel: viewModel)
+                } else {
+                    TabView(selection: $viewModel.currentSelection) {
+                        ForEach(0..<viewModel.bookSpines.count, id: \.self) { idx in
+                            Group {
+                                if let chapterURL = viewModel.chapterURL(for: idx) {
+                                    VStack {
+                                        chapterView(chapterURL, idx: idx)
+                                        .padding(.horizontal, 24)
+                                        .padding(.vertical, 12)
+                                        .id(viewModel.readerConfigId(for: idx))
+                                        if viewModel.totalPages > 1 {
+                                            Text(viewModel.pageInfo)
+                                                .font(.system(size: 14))
+                                                .foregroundStyle(viewModel.textColor)
+                                                .opacity(viewModel.canTouch ? 1 : 0)
+                                                .animation(.easeInOut(duration: 0.25),
+                                                           value: viewModel.canTouch)
+                                        }
+                                    }
+                                } else {
+                                    Text("Unable to resolve chapter at spine index \(idx).")
                                         .foregroundStyle(viewModel.textColor)
-                                        .opacity(viewModel.canTouch ? 1 : 0)
-                                        .animation(.easeInOut(duration: 0.25),
-                                                   value: viewModel.canTouch)
+                                        .padding()
                                 }
                             }
-                        } else {
-                            Text("Unable to resolve chapter at spine index \(idx).")
-                                .foregroundStyle(viewModel.textColor)
-                                .padding()
+                            .tag(idx)
+                            .gesture(viewModel.gesture)
                         }
                     }
-                    .tag(idx)
-                    .gesture(viewModel.gesture)
+                    .tabViewStyle(.page(indexDisplayMode: .never))
                 }
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
             .navigationBarBackButtonHidden(true)
             .toolbar {
                 toolbarView

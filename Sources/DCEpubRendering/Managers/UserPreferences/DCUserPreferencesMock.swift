@@ -24,4 +24,8 @@ final class DCUserPreferencesMock: DCUserPreferencesProtocol {
     func getBookOrientation() -> DCBookrOrientation {
         .horizontal
     }
+
+    func getPageTransition() -> DCPageTransition {
+        .curl
+    }
 }
