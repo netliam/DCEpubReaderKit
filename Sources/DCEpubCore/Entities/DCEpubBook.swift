@@ -116,6 +116,14 @@ extension DCEpubBook {
         return resourceURL(forHref: item.href)
     }
 
+    /// The spine index of the chapter at `url` (a file URL; any `#fragment` is ignored).
+    public func spineIndex(forChapterURL url: URL) -> Int? {
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.fragment = nil
+        let target = (components?.url ?? url).standardizedFileURL.path
+        return spine.indices.first { chapterURL(forSpineIndex: $0)?.standardizedFileURL.path == target }
+    }
+
     /// Returns the absolute URL for a chapter by manifest `idref`.
     public func chapterURL(forIdRef idref: String) -> URL? {
         guard let item = manifest.first(where: { $0.id == idref }) else { return nil }

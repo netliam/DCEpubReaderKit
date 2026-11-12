@@ -135,8 +135,8 @@ extension DCWebView {
 }
 
 extension DCWebView {
-    /// Whether a highlight is drawn under `point` (in `view`'s coordinates), in whichever reader
-    /// web view is there.
+    /// Whether a highlight or a link is under `point` (in `view`'s coordinates), in whichever
+    /// reader web view is there, so the tap isn't also a page tap.
     static func hasHighlight(at point: CGPoint, in view: UIView) async -> Bool {
         var hit = view.hitTest(point, with: nil)
         while let current = hit, !(current is DCWebView) {

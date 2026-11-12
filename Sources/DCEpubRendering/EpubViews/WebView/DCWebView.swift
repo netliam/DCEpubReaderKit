@@ -19,6 +19,8 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
     private(set) var lineFocus: DCLineFocusController?
     /// The menu shown when a highlight is tapped (see DCWebView+HighlightMenu.swift).
     var highlightMenu: DCHighlightMenu?
+    /// The page's theme, for views shown over it (footnotes). Set with the line focus and theme.
+    var readerAppearance: DCReaderAppearance?
 
     override init(frame: CGRect, configuration: WKWebViewConfiguration) {
         super.init(frame: frame, configuration: configuration)
@@ -38,6 +40,7 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
 
     private func teardown() {
         configuration.userContentController.removeScriptMessageHandler(forName: Constants.highlightTapped)
+        configuration.userContentController.removeScriptMessageHandler(forName: Self.linkTappedHandler)
     }
 
     private func setupBindings() {
@@ -70,6 +73,7 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
         // would keep every web view alive. The weak proxy lets `deinit` (and `teardown`) run.
         let handler = DCWeakScriptMessageHandler(target: self)
         configuration.userContentController.add(handler, name: Constants.highlightTapped)
+        configuration.userContentController.add(handler, name: Self.linkTappedHandler)
     }
 
     // MARK: - WKScriptMessageHandler
@@ -79,6 +83,8 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
         switch message.name {
         case Constants.highlightTapped:
             handleHighlightTapped(message.body)
+        case Self.linkTappedHandler:
+            handleLinkTapped(message.body)
         default:
             break
         }
@@ -121,6 +127,7 @@ extension WKWebView {
     /// Switches a loaded chapter to another theme by replacing its injected theme style.
     /// Only for themes with the same font weight: colors don't change the layout, weight does.
     func applyTheme(_ appearance: DCReaderAppearance) async {
+        (self as? DCWebView)?.readerAppearance = appearance
         let css = DCChapterHTMLBuilder.themeCSS(for: appearance)
         guard let data = try? JSONSerialization.data(withJSONObject: [css]),
               let array = String(data: data, encoding: .utf8) else { return }
@@ -157,6 +164,7 @@ extension DCWebView {
                       appearance: DCReaderAppearance,
                       style: DCLineFocusStyle,
                       textTrailingInset: CGFloat = 0) {
+        readerAppearance = appearance
         lineFocus?.detach()
         lineFocus = enabled
             ? DCLineFocusController(webView: self, appearance: appearance, style: style, textTrailingInset: textTrailingInset)

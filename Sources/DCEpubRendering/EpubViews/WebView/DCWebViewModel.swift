@@ -5,6 +5,7 @@
 //  Created by Josep Cerdá Penadés on 26/11/25.
 //
 
+import Foundation
 import DCEpubCore
 
 @MainActor
@@ -24,6 +25,10 @@ final class DCWebViewModel: DCWebViewModelProtocol {
 
     func searchBook(for text: String) {
         router.searchBook(for: text)
+    }
+
+    func openLink(_ url: URL) {
+        router.openLink(url)
     }
 
     func saveHighlight(_ highlight: DCHighlight) async {

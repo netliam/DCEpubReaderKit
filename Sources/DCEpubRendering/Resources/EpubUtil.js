@@ -187,10 +187,20 @@
     function getPageForElementId(id, vertical) {
         const el = document.getElementById(id) || document.getElementsByName(id)[0];
         if (!el) return '-1';
-        const offset = offsetOf(el);
-        const page = vertical
-            ? Math.floor(offset.top / window.innerHeight)
-            : Math.floor(offset.left / window.innerWidth);
+        // The element's first box: one split across pages (a heading broken over two columns, or a
+        // section) starts on the first of them, which offsetLeft doesn't always report.
+        const first = Array.from(el.getClientRects()).find(function (r) { return r.width > 0 || r.height > 0; });
+        let page;
+        if (first) {
+            page = vertical
+                ? Math.floor((first.top + window.scrollY) / window.innerHeight)
+                : Math.floor((first.left + window.scrollX) / window.innerWidth);
+        } else {
+            const offset = offsetOf(el);
+            page = vertical
+                ? Math.floor(offset.top / window.innerHeight)
+                : Math.floor(offset.left / window.innerWidth);
+        }
         return String(Math.max(0, page));
     }
 
@@ -899,6 +909,99 @@
         return (el && el.closest && el.closest('[' + HIGHLIGHT_ATTR + ']')) ? 'true' : 'false';
     }
     
+    // Whether a tap at the viewport point lands on a highlight or a link, which handle it themselves,
+    // so it isn't also a page tap (controls, or turning the page).
+    function isTappableAtPoint(x, y) {
+        const el = document.elementFromPoint(x, y);
+        if (!el || !el.closest) return 'false';
+        return el.closest('[' + HIGHLIGHT_ATTR + '], a[href]') ? 'true' : 'false';
+    }
+    
+    // --------------------------------------------------
+    // Links and footnotes
+    // --------------------------------------------------
+    // Taps on links are posted to the app (`linkTapped`) instead of navigating the web view:
+    //   { kind: 'footnote', text, rect }  a note in this chapter, shown in a popover;
+    //   { kind: 'noteref', url, rect }     a note in another file, which the app reads;
+    //   { kind: 'link', url }              anywhere else: another place in the book, or the web.
+    const NOTE_TYPES = /(^|\s)(footnote|endnote|rearnote|note)(\s|$)/;
+    const NOTE_ROLES = /(^|\s)doc-(footnote|endnote)(\s|$)/;
+    
+    function epubType(el) {
+        return (el.getAttributeNS && el.getAttributeNS('http://www.idpf.org/2007/ops', 'type'))
+            || el.getAttribute('epub:type') || '';
+    }
+    
+    function isNoteRef(a) {
+        return /(^|\s)noteref(\s|$)/.test(epubType(a)) || /(^|\s)doc-noteref(\s|$)/.test(a.getAttribute('role') || '');
+    }
+    
+    // The note element itself, or the note it is inside (a footnote's <p> inside its <aside>).
+    function noteContainer(el) {
+        for (let cur = el; cur && cur.nodeType === 1 && cur !== document.body; cur = cur.parentElement) {
+            if (NOTE_TYPES.test(epubType(cur)) || NOTE_ROLES.test(cur.getAttribute('role') || '')) return cur;
+        }
+        return null;
+    }
+    
+    // A note's text, without its back link ("↩") and with paragraphs kept apart.
+    function noteText(el) {
+        const clone = el.cloneNode(true);
+        clone.querySelectorAll('a').forEach(function (a) {
+            if (/(^|\s)backlink(\s|$)/.test(epubType(a)) || /doc-backlink/.test(a.getAttribute('role') || '')) a.remove();
+        });
+        const blocks = clone.querySelectorAll('p, li, div');
+        const parts = blocks.length
+            ? Array.from(blocks).filter(function (b) { return !b.querySelector('p, li, div'); }).map(function (b) { return b.textContent; })
+            : [clone.textContent];
+        return parts.map(function (t) { return t.replace(/\s+/g, ' ').trim(); }).filter(Boolean).join('\n\n');
+    }
+    
+    function rectString(el) {
+        const r = el.getBoundingClientRect();
+        return '{{' + r.left + ',' + r.top + '}, {' + r.width + ',' + r.height + '}}';
+    }
+    
+    // What tapping link `a` does (see above), or null to let the web view handle it.
+    function linkAction(a) {
+        const href = a.getAttribute('href');
+        if (!href || /^javascript:/i.test(href)) return null;
+        let url;
+        try { url = new URL(href, window.dcChapterURL || document.baseURI); } catch (_) { return null; }
+        const chapter = window.dcChapterURL ? new URL(window.dcChapterURL) : null;
+        const sameChapter = href.charAt(0) === '#'
+            || (chapter && url.protocol === 'file:' && url.pathname === chapter.pathname);
+        const id = url.hash ? decodeURIComponent(url.hash.slice(1)) : '';
+        if (sameChapter && id) {
+            const target = document.getElementById(id);
+            const note = target ? (noteContainer(target) || (isNoteRef(a) ? target : null)) : null;
+            if (note) {
+                const text = noteText(note);
+                if (text) return { kind: 'footnote', text: text, rect: rectString(a) };
+            }
+        } else if (isNoteRef(a) && url.protocol === 'file:') {
+            return { kind: 'noteref', url: url.href, rect: rectString(a) };
+        }
+        return { kind: 'link', url: url.href };
+    }
+    
+    function installLinkBridge() {
+        if (window.__dc_link_listener) return;
+        window.__dc_link_listener = function (event) {
+            const a = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+            if (!a) return;
+            const action = linkAction(a);
+            const handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.linkTapped;
+            if (!action || !handler) return;
+            event.preventDefault();
+            event.stopPropagation();
+            handler.postMessage(action);
+        };
+        document.addEventListener('click', window.__dc_link_listener, true);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installLinkBridge, { once: true });
+    else installLinkBridge();
+    
     function checkIfValid(anchorNode, anchorOffset, focusNode, focusOffset) {
         const invalid = (n)=> n && isHighlightElement(n.parentNode);
         return !(invalid(anchorNode) || invalid(focusNode));
@@ -1099,7 +1202,10 @@
         setHighlightStyleById,
         setHighlightNoteById,
         removeHighlightById,
-        isHighlightAtPoint
+        isHighlightAtPoint,
+        isTappableAtPoint,
+        linkAction,
+        noteText
     };
     
     window.EpubUtil = window.EpubUtil || {};

@@ -31,8 +31,15 @@ enum DCChapterHTMLBuilder {
             return ""
         }
 
+        // Links resolve against the chapter file (see `linkAction` in EpubUtil.js); the page's base
+        // URL is only its folder.
+        let chapterURL = URL(fileURLWithPath: contentsOfFile).absoluteString
+        let chapterURLLiteral = (try? JSONSerialization.data(withJSONObject: [chapterURL]))
+            .flatMap { String(data: $0, encoding: .utf8) }
+            .map { String($0.dropFirst().dropLast()) } ?? "\"\""
         let headInject =
         """
+        <script>window.dcChapterURL = \(chapterURLLiteral);</script>\n
         <link rel='stylesheet' type='text/css' href=\"\(style)\">\n
         <script type='text/javascript' src=\"\(epubHelper)\"></script>\n
         <script type='text/javascript' src=\"\(dohighlight)\"></script>\n

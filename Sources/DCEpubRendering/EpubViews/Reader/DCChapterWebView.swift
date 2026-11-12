@@ -25,6 +25,8 @@ enum DCChapterViewAction {
     case pageLayout(size: CGSize)
     /// The reader tapped the page: show or hide the reader controls.
     case toggleChrome
+    /// A link that isn't a footnote: another place in the book, or a web page.
+    case openLink(URL)
 }
 
 struct DCChapterWebView: UIViewRepresentable {

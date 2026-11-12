@@ -45,7 +45,7 @@ extension DCWebView {
             case let .setNote(uuid, hasNote):
                 return "setHighlightNoteById(\(jsLiteral(uuid)),\(hasNote))"
             case let .isHighlightAtPoint(point):
-                return "isHighlightAtPoint(\(Double(point.x)),\(Double(point.y)))"
+                return "isTappableAtPoint(\(Double(point.x)),\(Double(point.y)))"
             }
         }
 
@@ -239,7 +239,8 @@ extension DCWebView {
         _ = try? await evaluateJavaScriptAsync(JSMethod.setNote(uuid: highlight.uuid, hasNote: highlight.hasNote).rawValue)
     }
 
-    /// Whether a highlight is drawn at `point`, in this web view's coordinates.
+    /// Whether a highlight or a link is at `point` (this web view's coordinates): they handle the
+    /// tap themselves.
     func hasHighlight(at point: CGPoint) async -> Bool {
         let result = try? await evaluateJavaScriptAsync(JSMethod.isHighlightAtPoint(point).rawValue)
         return result == "true"

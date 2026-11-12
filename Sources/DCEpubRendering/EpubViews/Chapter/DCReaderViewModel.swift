@@ -473,6 +473,9 @@ final class DCReaderViewModel: ObservableObject {
         case .toggleChrome:
             isChromeVisible.toggle()
 
+        case let .openLink(url):
+            openLink(url)
+
         case let .pageLayout(size):
             pendingLayout = DCBookPaginator.Layout(pageSize: size,
                                                    isVertical: !isPagedMode,
@@ -776,6 +779,28 @@ final class DCReaderViewModel: ObservableObject {
         }
         pendingJumpsBySpineIndex[spineIndex] = jump
         currentSelection = spineIndex
+    }
+
+    /// Follows a link in the book: to its chapter and `#fragment`, with Back to return. Links out
+    /// of the book open in the browser.
+    @MainActor
+    func openLink(_ url: URL) {
+        guard url.isFileURL else {
+            if ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "") {
+                UIApplication.shared.open(url)
+            }
+            return
+        }
+        guard let spineIndex = book.spineIndex(forChapterURL: url) else { return }
+        let fragment = url.fragment.flatMap { $0.isEmpty ? nil : $0 }
+        rememberPositionBeforeJump()
+        if isPagedMode {
+            pagedNavigator?.show(spineIndex: spineIndex, fragment: fragment)
+        } else if let fragment {
+            navigate(to: .fragment(fragment), in: spineIndex)
+        } else {
+            currentSelection = spineIndex
+        }
     }
 
     /// Opens a table-of-contents entry at its chapter (and `#fragment`, if it has one).

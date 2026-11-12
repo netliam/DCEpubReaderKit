@@ -3,6 +3,9 @@
  *  DCEpubReaderKit
  */
 
+/* The `epub|` attribute prefix used below; without it those selectors are dropped. */
+@namespace epub "http://www.idpf.org/2007/ops";
+
 /* CSS Reset */
 html, body, div, span, applet, object, iframe,
 h1, h2, h3, h4, h5, h6, p, blockquote, pre,
@@ -159,7 +162,10 @@ img, svg, audio, video, #fullpage, .imgalto {
 /* Divs are also used to size images so make sure the authors get what they intended */
 /* which is for the images boxed in them to be completely visible on screen */
 div { max-width: 100%; }
-aside[epub|type~="footnote"] { display: none !important; }
+/* Footnotes open in a popover from their reference (see `linkAction` in EpubUtil.js), not in the text. */
+/* Chapters are loaded as HTML, where `epub:type` is a plain attribute name, so the escaped form is
+   the one that matches; `epub|type` covers documents parsed as XML. */
+aside[epub\:type~="footnote"], aside[epub|type~="footnote"], aside[role~="doc-footnote"] { display: none !important; }
 ruby > rt, ruby > rp { -webkit-user-select: none; }
 * { -webkit-font-smoothing: subpixel-antialiased }
 

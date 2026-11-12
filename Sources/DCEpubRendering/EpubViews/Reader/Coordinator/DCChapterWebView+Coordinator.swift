@@ -209,7 +209,8 @@ extension DCChapterWebView {
                 decisionHandler(.cancel)
                 return
             }
-            decisionHandler(.allow)
+            // Links are posted as `linkTapped`; the chapter must never navigate away.
+            decisionHandler(navigationAction.navigationType == .linkActivated ? .cancel : .allow)
         }
 
         @MainActor

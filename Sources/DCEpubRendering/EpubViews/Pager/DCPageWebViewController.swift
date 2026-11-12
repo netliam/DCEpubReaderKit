@@ -474,7 +474,8 @@ extension DCPageWebViewController: WKNavigationDelegate {
         guard let url = navigationAction.request.url, url.scheme != "highlight" else {
             return .cancel
         }
-        return .allow
+        // Links are posted as `linkTapped`; a page must never navigate away from its chapter.
+        return navigationAction.navigationType == .linkActivated ? .cancel : .allow
     }
 }
 
@@ -496,6 +497,10 @@ extension DCPageWebViewController {
 
     func searchBook(for text: String) {
         onAction(.searchBook(query: text))
+    }
+
+    func openLink(_ url: URL) {
+        onAction(.openLink(url))
     }
 
     func saveHighlight(_ highlight: DCHighlight) async {
@@ -534,6 +539,10 @@ private final class DCPageRouter: DCWebViewRouterProtocol {
 
     func searchBook(for text: String) {
         page?.searchBook(for: text)
+    }
+
+    func openLink(_ url: URL) {
+        page?.openLink(url)
     }
 
     func saveHighlight(_ highlight: DCHighlight) async {

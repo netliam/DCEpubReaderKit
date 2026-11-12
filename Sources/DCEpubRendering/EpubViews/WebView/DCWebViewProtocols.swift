@@ -13,6 +13,8 @@ protocol DCWebViewModelProtocol {
     func showNoote(highlight: DCHighlight)
     /// Opens the book search with `text` (the selection menu's Search).
     func searchBook(for text: String)
+    /// Follows a link that isn't a footnote: another place in the book, or a web page.
+    func openLink(_ url: URL)
     func saveHighlight(_ highlight: DCHighlight) async
     func loadHighlights() async -> [DCHighlight]
     func deleteHighlight(uuid: String) async
@@ -27,6 +29,8 @@ protocol DCWebViewRouterProtocol {
     func showNoote(highlight: DCHighlight)
     /// Opens the book search with `text` (the selection menu's Search).
     func searchBook(for text: String)
+    /// Follows a link that isn't a footnote: another place in the book, or a web page.
+    func openLink(_ url: URL)
     func saveHighlight(_ highlight: DCHighlight) async
     func loadHighlights() async -> [DCHighlight]
     func deleteHighlight(uuid: String) async
