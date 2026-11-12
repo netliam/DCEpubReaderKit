@@ -194,7 +194,7 @@ extension WebKitBackedTests {
                     const t = document.getElementById('p').firstChild;
                     const r = document.createRange(); r.setStart(t, 4); r.setEnd(t, 10);
                     const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-                    highlightSelectionInPlace('highlight-yellow', 'n1');
+                    highlightSelectionInPlace('highlight-highlight', 'n1');
                     return 'ok';
                 })()
                 """)

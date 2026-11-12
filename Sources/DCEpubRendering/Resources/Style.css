@@ -184,16 +184,23 @@ input, textarea, button, highlight, select, a {
     -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
 
-/* Highlight styles */
-html .highlight-yellow {background:rgb(255, 235, 107)}
-html .highlight-green {background:#C0ED72}
-html .highlight-blue {background:#ADD8FF}
+/* Highlight styles (DCAnnotationStyle), in the highlight's color: --dc-hl, set on each span.
+   !important so the themes' `span { background-color: transparent }` don't hide them. */
 html .highlight_search {background:#ADD8FF}
-html .highlight-pink {background:#FFB0CA}
-html .highlight-purple {background:#D6B8F5}
+html .highlight-highlight {background: var(--dc-hl, #FFEB6B) !important}
 html .highlight-underline {
     text-decoration: none;
-    border-bottom: 2px solid #F02814;
+    border-bottom: 2px solid var(--dc-hl, #F02814);
+}
+html .highlight-squiggly {
+    text-decoration: underline wavy var(--dc-hl, #F02814) !important;
+    text-decoration-thickness: 1.5px !important;
+    text-underline-offset: 3px;
+    text-decoration-skip-ink: none;
+}
+html .highlight-strikethrough {
+    text-decoration: line-through var(--dc-hl, #F02814) !important;
+    text-decoration-thickness: 2px !important;
 }
 
 /* A passage with a note gets a small speech bubble in the margin beside its last line, in the text
@@ -214,7 +221,7 @@ html .highlight-underline {
 
 /* No padding past the text: a highlight starting a line of the next page would show its edge at
    the right of this one, since pages are columns side by side. */
-html .highlight-yellow, html .highlight-green, html .highlight-blue, html .highlight_search, html .highlight-pink, html .highlight-purple, span.epub-media-overlay-playing {
+html .highlight-highlight, html .highlight_search, span.epub-media-overlay-playing {
     border-radius: 3px;
 }
 
@@ -254,13 +261,7 @@ html.nightMode {
     color: #949494 !important;
 }
 
-html.nightMode .highlight-yellow {background:rgba(255, 235, 107, 0.9)}
-html.nightMode .highlight-green {background:rgba(192, 237, 114, 0.9)}
-html.nightMode .highlight-blue {background:rgba(173, 216, 255, 0.9)}
 html.nightMode .highlight_search {background:rgba(173, 216, 255, 0.9)}
-html.nightMode .highlight-pink {background:rgba(255, 176, 202, 0.9)}
-html.nightMode .highlight-purple {background:rgba(214, 184, 245, 0.9)}
-html.nightMode .highlight-underline {border-bottom: 2px solid rgba(240, 40, 20, 0.6)}
 
 /**
  Red mode
@@ -278,12 +279,7 @@ html.redMode {
     color: #EA464A !important;
 }
 
-html.redMode .highlight-yellow {background:rgba(255, 235, 107, 0.9)}
-html.redMode .highlight-green {background:rgba(192, 237, 114, 0.9)}
-html.redMode .highlight-blue {background:rgba(173, 216, 255, 0.9)}
 html.redMode .highlight_search {background:rgba(173, 216, 255, 0.9)}
-html.redMode .highlight-pink {background:rgba(255, 176, 202, 0.9)}
-html.redMode .highlight-underline {border-bottom: 2px solid rgba(240, 240, 240, 0.8)}
 
 /*
  *

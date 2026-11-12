@@ -26,19 +26,23 @@ public struct DCEpubBook: Sendable {
     public let spine: [DCSpineItem]
     public let toc: [DCTocNode]
     public let resourcesRoot: URL
+    /// The CFI step of `<spine>` in the package document (see `DCOPFPackage.spineStep`).
+    public let spineStep: Int
 
     public init(packagePath: String,
                 metadata: DCOPFMetadata,
                 manifest: [DCManifestItem],
                 spine: [DCSpineItem],
                 toc: [DCTocNode],
-                resourcesRoot: URL) {
+                resourcesRoot: URL,
+                spineStep: Int = 6) {
         self.packagePath = packagePath
         self.metadata = metadata
         self.manifest = manifest
         self.spine = spine
         self.toc = toc
         self.resourcesRoot = resourcesRoot
+        self.spineStep = spineStep
     }
 }
 

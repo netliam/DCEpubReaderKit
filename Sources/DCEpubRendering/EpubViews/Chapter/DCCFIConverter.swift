@@ -36,7 +36,7 @@ public final class DCCFIConverter {
         guard book.spine.indices.contains(spineIndex), await load(spineIndex),
               let path = try? await webView?.evaluateJavaScriptAsync("coordsToCFI(\(Self.jsLiteral(coords)))"),
               !path.isEmpty else { return nil }
-        return "epubcfi(\(Self.spineStep(spineIndex, idref: book.spine[spineIndex].idref))!\(path))"
+        return "epubcfi(\(Self.spineStep(spineIndex, in: book))!\(path))"
     }
 
     /// The chapter and coords a CFI points to (a point, or a range as `"a,b"`).
@@ -49,10 +49,9 @@ public final class DCCFIConverter {
 
     // MARK: Package part
 
-    // shortcut: assumes <spine> is the package's third element (/6), as epub.js writes it; read
-    // the package's own order if a sync partner writes something else.
-    static func spineStep(_ spineIndex: Int, idref: String) -> String {
-        "/6/\(2 * (spineIndex + 1))[\(idref)]"
+    /// The package part of a CFI: `<spine>`'s real step in the OPF, then the itemref's.
+    static func spineStep(_ spineIndex: Int, in book: DCEpubBook) -> String {
+        "/\(book.spineStep)/\(2 * (spineIndex + 1))[\(book.spine[spineIndex].idref)]"
     }
 
     /// The spine index (from the idref assertion, else the step number) and the chapter path.

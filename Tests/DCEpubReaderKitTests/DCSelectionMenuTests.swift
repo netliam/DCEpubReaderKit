@@ -26,26 +26,50 @@ struct DCSelectionMenuTests {
           "note":"x","chapterTitle":"","dateCreated":0,"dateUpdated":0}]
         """
         let marks = try JSONDecoder().decode([DCHighlight].self, from: Data(json.utf8))
-        #expect(marks.map(\.style) == [nil, nil])
-        #expect(marks.map(\.displayStyle) == [.yellow, .underline])
+        #expect(marks.map(\.annotationStyle) == [.highlight, .underline])
+        #expect(marks.map(\.color) == ["#FFEB6B", "#F02814"])
     }
 
-    @Test func styleSurvivesEncoding() throws {
-        let highlight = DCHighlight(uuid: "a", bookId: "b", chapterId: "c", spineIndex: 0,
-                                    type: .highlight, text: "t", coords: "1|0", style: .purple)
-        let decoded = try JSONDecoder().decode(DCHighlight.self, from: JSONEncoder().encode(highlight))
-        #expect(decoded.style == .purple)
-        #expect(decoded.displayStyle.cssClass == "highlight-purple")
+    @Test func highlightsSavedWithAColorNameKeepIt() throws {
+        // Before styles and colors were separate, `style` held one of DCHighlightStyle's names.
+        let json = """
+        [{"uuid":"a","bookId":"b","chapterId":"c","spineIndex":0,"type":"H","text":"t","coords":"1|0",
+          "note":"","chapterTitle":"","style":"purple","dateCreated":0,"dateUpdated":0},
+         {"uuid":"u","bookId":"b","chapterId":"c","spineIndex":0,"type":"H","text":"t","coords":"1|0",
+          "note":"","chapterTitle":"","style":"underline","dateCreated":0,"dateUpdated":0}]
+        """
+        let marks = try JSONDecoder().decode([DCHighlight].self, from: Data(json.utf8))
+        #expect(marks.map(\.annotationStyle) == [.highlight, .underline])
+        #expect(marks.map(\.color) == ["#D6B8F5", "#F02814"])
     }
 
-    @Test func everyStyleHasAStylesheetClass() throws {
+    @Test func styleAndAnyColorSurviveEncodingUnchanged() throws {
+        let highlight = DCHighlight(uuid: "a", bookId: "b", chapterId: "c", spineIndex: 0, type: .highlight,
+                                    text: "t", coords: "1|0", annotationStyle: .squiggly, color: "#dc143c")
+        let data = try JSONEncoder().encode(highlight)
+        let decoded = try JSONDecoder().decode(DCHighlight.self, from: data)
+        #expect(decoded == highlight)
+        #expect(decoded.color == "#dc143c")
+        #expect(decoded.annotationStyle.cssClass == "highlight-squiggly")
+        #expect(String(decoding: data, as: UTF8.self).contains("\"style\"") == false)
+    }
+
+    @Test func everyStyleHasAStylesheetClassAndSymbol() throws {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .appendingPathComponent("../../Sources/DCEpubRendering/Resources/Style.css")
         let css = try String(contentsOf: url, encoding: .utf8)
-        for style in DCHighlightStyle.allCases {
+        for style in DCAnnotationStyle.allCases {
             #expect(css.contains(".\(style.cssClass)"), "Missing \(style.cssClass)")
+            #expect(UIImage(systemName: style.systemImage) != nil, "Missing symbol \(style.systemImage)")
         }
+    }
+
+    @Test func hexColorsParse() {
+        #expect(UIColor(hex: "#DC143C") == UIColor(red: 220 / 255, green: 20 / 255, blue: 60 / 255, alpha: 1))
+        #expect(UIColor(hex: "fff") == UIColor(red: 1, green: 1, blue: 1, alpha: 1))
+        #expect(UIColor(hex: "#12345") == nil)
+        #expect(UIColor(hex: "red") == nil)
     }
 
     @Test @MainActor func lookUpKeepsSystemCommandsExceptWebSearch() {
@@ -90,15 +114,14 @@ extension WebKitBackedTests {
                                     configuration: WKWebViewConfiguration())
             let translate = UICommand(title: "Translate", action: NSSelectorFromString("_translate:"))
             let sections = webView.selectionMenuElements(systemLookUp: [translate]).compactMap { $0 as? UIMenu }
-            #expect(sections.count == 4)
+            #expect(sections.count == 3)
             // Swatches are image-only, named for VoiceOver.
             #expect(sections[0].children.allSatisfy { $0.title.isEmpty && $0.image != nil })
             #expect(sections[0].children.map(\.accessibilityLabel) == ["Yellow", "Green", "Blue", "Pink", "Purple", "Underline"])
             let titles = sections.dropFirst().map { $0.children.map(\.title) }
             #expect(titles == [
                 ["Add Note"],
-                ["Translate", "Search", "Copy"],
-                ["Share…"]
+                ["Translate", "Search", "Copy", "Share…"]
             ])
             #expect(sections.allSatisfy { $0.options.contains(.displayInline) })
             if #available(iOS 17.0, *) {
@@ -127,10 +150,79 @@ extension WebKitBackedTests {
             #expect(sections[3].children.map(\.title) == ["Delete Highlight and Note"])
         }
 
+        private static let grimmory: [DCHighlightPalette] = [
+            DCHighlightPalette(style: .highlight, colors: [("Yellow", "#FACC15"), ("Green", "#4ADE80"), ("Blue", "#38BDF8"),
+                                                           ("Pink", "#F472B6"), ("Orange", "#FB923C")]),
+            DCHighlightPalette(style: .underline, colors: [("Dark Gold", "#B8860B"), ("Forest Green", "#228B22")]),
+            DCHighlightPalette(style: .squiggly, colors: [("Crimson", "#DC143C"), ("Dodger Blue", "#1E90FF")]),
+            DCHighlightPalette(style: .strikethrough, colors: [("Dark Orange", "#FF8C00"), ("Crimson", "#DC143C")])
+        ]
+
+        private func webView(_ configure: (inout DCReaderConfiguration) -> Void) -> (DCWebView, DCReaderConfiguration) {
+            var configuration = DCReaderConfiguration()
+            configuration.defaults = UserDefaults(suiteName: "DCMenuTests-\(UUID().uuidString)")!
+            configure(&configuration)
+            let webView = DCWebView(frame: CGRect(x: 0, y: 0, width: 320, height: 480), configuration: WKWebViewConfiguration())
+            webView.viewModel = DCMenuWebViewModelMock(configuration: configuration)
+            return (webView, configuration)
+        }
+
+        @Test func hostPalettesShowTheCurrentStyleWithASwitcher() throws {
+            let (webView, configuration) = webView { $0.highlightMenu.palettes = Self.grimmory }
+            configuration.defaults.setLastHighlight(style: .squiggly, color: "#1E90FF")
+            let sections = webView.selectionMenuElements(systemLookUp: []).compactMap { $0 as? UIMenu }
+            #expect(sections[0].children.map(\.accessibilityLabel) == ["Crimson", "Dodger Blue"])
+            let style = try #require(sections[1].children.first as? UIMenu)
+            #expect(style.title == "Style")
+            #expect(style.children.map(\.title) == ["Highlight", "Underline", "Strikethrough"])
+            #expect((style.children[2] as? UIMenu)?.children.map(\.title) == ["Dark Orange", "Crimson"])
+            // Add Note uses the last style and color.
+            #expect(webView.currentLook() == (.squiggly, "#1E90FF"))
+        }
+
+        @Test func aTappedHighlightShowsItsOwnStyleAndColor() throws {
+            let (webView, _) = webView { $0.highlightMenu.palettes = Self.grimmory }
+            let highlight = DCHighlight(uuid: "h", bookId: "b", chapterId: "c", spineIndex: 0, type: .highlight,
+                                        text: "t", coords: "1|0", annotationStyle: .strikethrough, color: "#dc143c")
+            let sections = webView.highlightMenuElements(for: highlight).compactMap { $0 as? UIMenu }
+            #expect(sections[0].children.map(\.accessibilityLabel) == ["Dark Orange", "Crimson, current"])
+            let style = try #require(sections[1].children.first as? UIMenu)
+            #expect(style.children.map(\.title) == ["Highlight", "Underline", "Squiggly"])
+        }
+
+        @Test func hostChoosesActionsAndOrder() {
+            let custom = DCCustomHighlightAction(title: "Send to Notebook", systemImage: "book") { _ in }
+            let (webView, _) = webView {
+                $0.highlightMenu.palettes = []
+                $0.highlightMenu.selectionActions = [.copy, .custom(custom), .delete, .note]
+                $0.highlightMenu.highlightActions = [.delete, .custom(custom)]
+            }
+            let selection = webView.selectionMenuElements(systemLookUp: []).compactMap { $0 as? UIMenu }
+            // No palettes: no color row. Delete doesn't apply to a selection.
+            #expect(selection.map { $0.children.map(\.title) } == [["Copy", "Send to Notebook"], ["Add Note"]])
+            let highlight = DCHighlight(uuid: "h", bookId: "b", chapterId: "c", spineIndex: 0,
+                                        type: .highlight, text: "t", coords: "1|0")
+            let tapped = webView.highlightMenuElements(for: highlight).compactMap { $0 as? UIMenu }
+            #expect(tapped.map { $0.children.map(\.title) } == [["Delete Highlight"], ["Send to Notebook"]])
+        }
+
+        @Test func customActionsGetTheHighlightAndItsPlace() async throws {
+            let (webView, _) = webView { _ in }
+            let highlight = DCHighlight(uuid: "h", bookId: "b", chapterId: "c", spineIndex: 2, type: .note,
+                                        text: "Call me Ishmael.", coords: "0000001>0000002|0000000,0000001>0000002|0000016")
+            let context = await withCheckedContinuation { (done: CheckedContinuation<DCHighlightActionContext, Never>) in
+                webView.run(DCCustomHighlightAction(title: "Translate") { done.resume(returning: $0) }, on: highlight)
+            }
+            #expect(context.text == "Call me Ishmael.")
+            #expect(context.spineIndex == 2)
+            #expect(context.coords == highlight.coords)
+            #expect(context.highlight == highlight)
+        }
+
         @Test func lookUpFallsBackWhenTheSystemHasNone() {
             let webView = DCWebView(frame: .zero, configuration: WKWebViewConfiguration())
             let sections = webView.selectionMenuElements(systemLookUp: []).compactMap { $0 as? UIMenu }
-            #expect(sections[2].children.map(\.title) == ["Look Up", "Search", "Copy"])
+            #expect(sections[2].children.map(\.title) == ["Look Up", "Search", "Copy", "Share…"])
         }
     }
 }
@@ -278,9 +370,9 @@ extension WebKitBackedTests {
             // Reopen the chapter and redraw from the saved coords, last first, like `loadHighlights`.
             let reopened = try await loadPage()
             try await redraw([green, note, purple], in: reopened)
-            #expect(try await drawn(green.uuid, in: reopened) == "highlight-green:beta")
+            #expect(try await drawn(green.uuid, in: reopened) == "highlight-highlight:beta")
             #expect(try await drawn(note.uuid, in: reopened) == "highlight-underline:delta")
-            #expect(try await drawn(purple.uuid, in: reopened) == "highlight-purple:Alpha")
+            #expect(try await drawn(purple.uuid, in: reopened) == "highlight-highlight:Alpha")
         }
 
         @Test func severalMarksInOneBookParagraphRedrawInPlace() async throws {
@@ -306,7 +398,7 @@ extension WebKitBackedTests {
             #expect(try await live.evaluateJavaScript("document.querySelectorAll('p').length") as? Int == before)
             // The text after the selection isn't highlighted.
             let livePart = try #require(try await drawn(saved.uuid, in: live))
-            #expect(livePart.hasPrefix("highlight-blue:combination."))
+            #expect(livePart.hasPrefix("highlight-highlight:combination."))
             #expect(livePart.hasSuffix("Each test"))
 
             // A highlight in a later paragraph, made after the long one, still lands in place.
@@ -315,14 +407,14 @@ extension WebKitBackedTests {
             let reopened = try await loadPage(body: Self.bookBody)
             try await redraw([saved, later], in: reopened)
             #expect(try await drawn(saved.uuid, in: reopened) == livePart)
-            #expect(try await drawn(later.uuid, in: reopened) == "highlight-yellow:purpose")
+            #expect(try await drawn(later.uuid, in: reopened) == "highlight-highlight:purpose")
         }
 
         @Test func overlappingSelectionIsRefused() async throws {
             let webView = try await loadPage()
             _ = try await highlight("beta", style: .green, in: webView)
             try await select(from: "Alpha", to: "gamma", in: webView)
-            let result = try await webView.evaluateJavaScript("highlightSelectionInPlace('highlight-yellow', 'x')")
+            let result = try await webView.evaluateJavaScript("highlightSelectionInPlace('highlight-highlight', 'x')")
             #expect(result as? String == nil)
             #expect(try await drawn("x", in: webView) == nil)
         }
@@ -342,14 +434,14 @@ extension WebKitBackedTests {
             #expect(Set(removed) == [beta.uuid, gammaDelta.uuid])
             let merged = try await highlightSelection(style: .yellow, in: webView)
             #expect(merged.text == "Alpha beta gamma delta", "widened to cover both")
-            #expect(try await drawn(merged.uuid, in: webView) == "highlight-yellow:Alpha beta gamma delta")
+            #expect(try await drawn(merged.uuid, in: webView) == "highlight-highlight:Alpha beta gamma delta")
             #expect(try await drawn(beta.uuid, in: webView) == nil)
             #expect(try await drawn(gammaDelta.uuid, in: webView) == nil)
 
             // It redraws in place from its saved coords.
             let reopened = try await loadPage()
             try await redraw([merged], in: reopened)
-            #expect(try await drawn(merged.uuid, in: reopened) == "highlight-yellow:Alpha beta gamma delta")
+            #expect(try await drawn(merged.uuid, in: reopened) == "highlight-highlight:Alpha beta gamma delta")
         }
 
         @Test func selectionWithoutHighlightsIsLeftAlone() async throws {
@@ -385,8 +477,13 @@ extension WebKitBackedTests {
             let webView = try await loadPage(body: Self.bookBody)
             try await select(from: "combination.", to: "Each test", in: webView)
             let saved = try await highlightSelection(style: .yellow, in: webView)
-            _ = try await webView.evaluateJavaScript("setHighlightStyleById('\(saved.uuid)', 'highlight-green')")
-            #expect(try await drawn(saved.uuid, in: webView)?.hasPrefix("highlight-green:") == true)
+            _ = try await webView.evaluateJavaScript("setHighlightStyleById('\(saved.uuid)', 'highlight-squiggly', '#DC143C')")
+            #expect(try await drawn(saved.uuid, in: webView)?.hasPrefix("highlight-squiggly:") == true)
+            let colors = try await webView.evaluateJavaScript("""
+            Array.from(document.querySelectorAll('[data-dc-highlight="\(saved.uuid)"]'))
+                .map(function (p) { return p.style.getPropertyValue('--dc-hl'); }).join(',')
+            """) as? String
+            #expect(colors?.split(separator: ",").allSatisfy { $0 == "#DC143C" } == true)
 
             let markers = """
             (function () {
@@ -428,23 +525,32 @@ extension WebKitBackedTests {
 @Suite("Note colors", .serialized)
 struct DCNoteColorTests {
 
-    @Test @MainActor func lastUsedColorIsRememberedAndStartsYellow() throws {
+    @Test @MainActor func lastColorIsRememberedPerStyle() throws {
         let defaults = try #require(UserDefaults(suiteName: "DCNoteColorTests-\(UUID().uuidString)"))
-        #expect(defaults.getLastHighlightStyle() == .yellow)
-        defaults.setLastHighlightStyle(.purple)
-        #expect(defaults.getLastHighlightStyle() == .purple)
-        defaults.setLastHighlightStyle(.underline)
-        #expect(defaults.getLastHighlightStyle() == .underline)
+        #expect(defaults.getLastAnnotationStyle() == nil)
+        defaults.setLastHighlight(style: .highlight, color: "#D6B8F5")
+        defaults.setLastHighlight(style: .squiggly, color: "#DC143C")
+        #expect(defaults.getLastAnnotationStyle() == .squiggly)
+        #expect(defaults.getLastHighlightColor(for: .highlight) == "#D6B8F5")
+        #expect(defaults.getLastHighlightColor(for: .squiggly) == "#DC143C")
+        #expect(defaults.getLastHighlightColor(for: .underline) == nil)
+    }
+
+    @Test @MainActor func olderVersionsLastColorIsRead() throws {
+        let defaults = try #require(UserDefaults(suiteName: "DCNoteColorTests-\(UUID().uuidString)"))
+        defaults.set("green", forKey: "DCLastHighlightStyle")
+        #expect(defaults.getLastAnnotationStyle() == .highlight)
+        #expect(defaults.getLastHighlightColor(for: .highlight) == "#C0ED72")
     }
 
     @Test func notesSavedAsUnderlinesKeepThem() {
         // Notes made before this change were stored with the underline style.
         let old = DCHighlight(uuid: "n", bookId: "b", chapterId: "c", spineIndex: 0, type: .note,
                               text: "t", coords: "1|0", style: .underline)
-        #expect(old.displayStyle == .underline)
+        #expect(old.annotationStyle == .underline)
         let colored = DCHighlight(uuid: "m", bookId: "b", chapterId: "c", spineIndex: 0, type: .note,
                                   text: "t", coords: "1|0", style: .green)
-        #expect(colored.displayStyle == .green)
+        #expect(colored.annotationStyle == .highlight && colored.color == "#C0ED72")
     }
 }
 
@@ -460,4 +566,30 @@ struct DCShareTextTests {
         #expect(book.shareText(quoting: nil) == byline)
         #expect(book.shareText(quoting: "") == byline)
     }
+}
+
+extension DCHighlightStyle {
+    /// The class these tests draw a kit color with (the color itself doesn't change coords).
+    var cssClass: String { annotationStyle.cssClass }
+}
+
+@MainActor
+final class DCMenuWebViewModelMock: DCWebViewModelProtocol {
+    let configuration: DCReaderConfiguration
+    var refresh: (() -> Void)?
+    let currentBookId = "b"
+    let currentChapterId = "c"
+    let currentSpineIndex = 0
+    let currentBook: DCEpubBook? = nil
+
+    init(configuration: DCReaderConfiguration) {
+        self.configuration = configuration
+    }
+
+    func showNoote(highlight: DCHighlight) {}
+    func searchBook(for text: String) {}
+    func openLink(_ url: URL) {}
+    func saveHighlight(_ highlight: DCHighlight) async {}
+    func loadHighlights() async -> [DCHighlight] { [] }
+    func deleteHighlight(uuid: String) async {}
 }

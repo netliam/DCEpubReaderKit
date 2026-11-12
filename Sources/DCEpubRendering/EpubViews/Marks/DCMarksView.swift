@@ -100,13 +100,15 @@ struct DCMarksView: View {
                     Text(L("All"))
                 case .notes:
                     Label(L("Notes"), systemImage: "note.text")
-                case .style(let style):
-                    if let swatch = style.swatchColor {
+                case let .look(style, color):
+                    let swatch = Color(uiColor: UIColor(hex: color) ?? .label)
+                    if style == .highlight {
                         Circle()
-                            .fill(Color(uiColor: swatch))
+                            .fill(swatch)
                             .frame(width: 16, height: 16)
                     } else {
-                        Image(systemName: "underline")
+                        Image(systemName: style.systemImage)
+                            .foregroundStyle(swatch)
                     }
                 }
             }
@@ -125,7 +127,7 @@ struct DCMarksView: View {
         switch filter {
         case .all: L("All")
         case .notes: L("Notes")
-        case .style(let style): style.menuTitle
+        case let .look(style, color): viewModel.name(of: style, color: color)
         }
     }
 
@@ -180,9 +182,9 @@ struct DCMarksView: View {
         .contentShape(Rectangle())
     }
 
-    /// Highlights and notes show their color; underlines and bookmarks stay neutral.
+    /// Highlights and notes show their color; bookmarks stay neutral.
     private func iconColor(for highlight: DCHighlight) -> Color {
-        guard highlight.type != .bookMark, let swatch = highlight.displayStyle.swatchColor else { return .secondary }
+        guard highlight.type != .bookMark, let swatch = UIColor(hex: highlight.color) else { return .secondary }
         return Color(uiColor: swatch)
     }
 

@@ -133,12 +133,14 @@ enum DCChapterHTMLBuilder {
     /// Highlights and search marks on fixed-layout pages (the rest of Style.css would change
     /// the page's design).
     private static let fixedLayoutCSS = """
-    .highlight-yellow { background: rgba(255, 235, 107, 0.6); }
-    .highlight-green { background: rgba(192, 237, 114, 0.6); }
-    .highlight-blue, .highlight_search { background: rgba(173, 216, 255, 0.6); }
-    .highlight-pink { background: rgba(255, 176, 202, 0.6); }
-    .highlight-purple { background: rgba(214, 184, 245, 0.6); }
-    .highlight-underline { border-bottom: 2px solid #F02814; }
+    .highlight_search { background: rgba(173, 216, 255, 0.6); }
+    .highlight-highlight {
+        background: var(--dc-hl, #FFEB6B);
+        background: color-mix(in srgb, var(--dc-hl, #FFEB6B) 60%, transparent);
+    }
+    .highlight-underline { border-bottom: 2px solid var(--dc-hl, #F02814); }
+    .highlight-squiggly { text-decoration: underline wavy var(--dc-hl, #F02814); text-decoration-skip-ink: none; }
+    .highlight-strikethrough { text-decoration: line-through var(--dc-hl, #F02814); text-decoration-thickness: 2px; }
     """
 
     /// Id of the injected line spacing and justification `<style>`.
@@ -156,7 +158,7 @@ enum DCChapterHTMLBuilder {
     static func themeCSS(for appearance: DCReaderAppearance) -> String {
         // Highlight colors are light, so their text stays dark in dark themes.
         let highlightText = appearance.hasDarkBackground
-            ? "html .highlight-yellow, html .highlight-green, html .highlight-blue, html .highlight-pink, html .highlight-purple, html .highlight_search { color: #000 !important; }"
+            ? "html .highlight-highlight, html .highlight_search { color: #000 !important; }"
             : ""
         return """
         html, body, p, div, span, li, td, th, blockquote, h1, h2, h3, h4, h5, h6 {

@@ -63,7 +63,8 @@ public struct DCEpubParser {
             manifest: manifest,
             spine: package.spine,
             toc: toc,
-            resourcesRoot: unzipRoot
+            resourcesRoot: unzipRoot,
+            spineStep: package.spineStep
         )
 
         return book

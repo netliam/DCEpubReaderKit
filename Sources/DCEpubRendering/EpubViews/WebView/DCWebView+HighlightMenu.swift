@@ -18,8 +18,8 @@ extension DCHighlight {
     static let notificationKey = "highlight"
 }
 
-/// The Books-style menu for a tapped highlight: its colors (the current one checked), Add or Edit
-/// Note, Copy, Share and Delete. Shown over the highlight with a `UIEditMenuInteraction`.
+/// The menu for a tapped highlight (see `highlightMenuElements`), shown over it with a
+/// `UIEditMenuInteraction`.
 @MainActor
 final class DCHighlightMenu: NSObject, @preconcurrency UIEditMenuInteractionDelegate {
 
@@ -61,53 +61,108 @@ extension DCWebView {
         menu.interaction.presentEditMenu(with: configuration)
     }
 
+    /// The tapped highlight's styles and colors (its own checked), then the host's highlight actions.
     func highlightMenuElements(for highlight: DCHighlight) -> [UIMenuElement] {
-        let current = highlight.displayStyle
-        let styles = DCHighlightStyle.allCases.map { style in
-            let action = UIAction(title: "", image: style == current ? style.selectedMenuImage : style.menuImage) { [weak self] _ in
-                self?.restyle(highlight, as: style)
-            }
-            // No `.on` state: the menu would draw its own tint-colored check over the swatch.
-            action.accessibilityLabel = style == current ? "\(style.menuTitle), current" : style.menuTitle
-            return action
-        }
-        let colors: UIMenu
-        if #available(iOS 17.0, *) {
-            colors = UIMenu(options: [.displayInline, .displayAsPalette], children: styles)
-        } else {
-            colors = UIMenu(options: .displayInline, children: styles)
-        }
-        colors.preferredElementSize = .small
-
-        let note = UIAction(title: highlight.hasNote ? L("Edit Note") : L("Add Note"),
-                            image: UIImage(systemName: highlight.hasNote ? "note.text" : "note.text.badge.plus")) { [weak self] _ in
-            self?.viewModel.showNoote(highlight: highlight)
-        }
-        let copy = UIAction(title: L("Copy"), image: UIImage(systemName: "doc.on.doc")) { _ in
-            UIPasteboard.general.string = highlight.text
-        }
-        let share = UIAction(title: L("Share…"), image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
-            self?.share(highlight)
-        }
-        let delete = UIAction(title: highlight.hasNote ? L("Delete Highlight and Note") : L("Delete Highlight"),
-                              image: UIImage(systemName: "trash"),
-                              attributes: .destructive) { [weak self] _ in
-            self?.delete(highlight)
-        }
-
-        return [
-            colors,
-            UIMenu(options: .displayInline, children: [note]),
-            UIMenu(options: .displayInline, children: [copy, share]),
-            UIMenu(options: .displayInline, children: [delete])
-        ]
+        paletteElements(current: highlight) { [weak self] style, color in
+            self?.restyle(highlight, style: style, color: color)
+        } + actionElements(menuConfiguration.highlightActions, highlight: highlight, systemLookUp: [])
     }
 
-    private func restyle(_ highlight: DCHighlight, as style: DCHighlightStyle) {
-        guard style != highlight.displayStyle else { return }
-        viewModel.configuration.defaults.setLastHighlightStyle(style)
+    /// The selection's styles and colors, then the host's selection actions.
+    func selectionMenuElements(systemLookUp: [UIMenuElement]) -> [UIMenuElement] {
+        paletteElements(current: nil) { [weak self] style, color in
+            self?.highlightSelection(style: style, color: color)
+        } + actionElements(menuConfiguration.selectionActions, highlight: nil, systemLookUp: systemLookUp)
+    }
+
+    /// The reader's configuration (the default before the view model is set).
+    private var readerConfiguration: DCReaderConfiguration {
+        viewModel?.configuration ?? DCReaderConfiguration()
+    }
+
+    var menuConfiguration: DCHighlightMenuConfiguration {
+        readerConfiguration.highlightMenu
+    }
+
+    /// The style and color to annotate with when none is picked (Add Note): the last ones used, if
+    /// still offered, else the first offered.
+    func currentLook() -> (style: DCAnnotationStyle, color: String) {
+        let menu = menuConfiguration
+        let defaults = readerConfiguration.defaults
+        guard let palette = defaults.getLastAnnotationStyle().flatMap(menu.palette(for:))
+                ?? menu.palettes.first(where: { !$0.colors.isEmpty }) else {
+            return (.highlight, DCHighlightStyle.yellow.color)
+        }
+        let last = defaults.getLastHighlightColor(for: palette.style)
+        let color = palette.colors.first { last.map($0.matches) ?? false } ?? palette.colors[0]
+        return (palette.style, color.hex)
+    }
+
+    // MARK: Styles and colors
+
+    /// A row with the colors of the current style and each single-color style, then, if other
+    /// styles have several colors, a submenu to pick from those.
+    private func paletteElements(current: DCHighlight?,
+                                 apply: @escaping (DCAnnotationStyle, String) -> Void) -> [UIMenuElement] {
+        let palettes = menuConfiguration.palettes.filter { !$0.colors.isEmpty }
+        guard !palettes.isEmpty else { return [] }
+        let multi = palettes.filter { $0.colors.count > 1 }
+        let singles = palettes.filter { $0.colors.count == 1 }
+        let activeStyle = current?.annotationStyle ?? currentLook().style
+        let active = multi.first { $0.style == activeStyle } ?? multi.first
+
+        func isCurrent(_ style: DCAnnotationStyle, _ color: DCHighlightColor) -> Bool {
+            current.map { $0.annotationStyle == style && color.matches($0.color) } ?? false
+        }
+        func swatch(_ palette: DCHighlightPalette, _ color: DCHighlightColor) -> UIAction {
+            let checked = isCurrent(palette.style, color)
+            let image = checked
+                ? UIImage(systemName: "checkmark.circle.fill")
+                : UIImage(systemName: palette.colors.count == 1 ? palette.style.systemImage : "circle.fill")
+            // No title: the compact edit menu shows titles instead of images. VoiceOver reads the label.
+            let action = UIAction(title: "", image: image?.withTintColor(UIColor(hex: color.hex) ?? .label,
+                                                                         renderingMode: .alwaysOriginal)) { _ in
+                apply(palette.style, color.hex)
+            }
+            // No `.on` state: the menu would draw its own tint-colored check over the swatch.
+            action.accessibilityLabel = checked ? String(format: L("%@, current"), color.name) : color.name
+            return action
+        }
+
+        let swatches = (active.map { palette in palette.colors.map { swatch(palette, $0) } } ?? [])
+            + singles.map { swatch($0, $0.colors[0]) }
+        let row: UIMenu
+        if #available(iOS 17.0, *) {
+            row = UIMenu(options: [.displayInline, .displayAsPalette], children: swatches)
+        } else {
+            row = UIMenu(options: .displayInline, children: swatches)
+        }
+        row.preferredElementSize = .small
+
+        let others = multi.filter { $0.style != active?.style }.map { palette in
+            UIMenu(title: palette.style.menuTitle, image: UIImage(systemName: palette.style.systemImage),
+                   children: palette.colors.map { color in
+                UIAction(title: color.name,
+                         image: UIImage(systemName: "circle.fill")?.withTintColor(UIColor(hex: color.hex) ?? .label,
+                                                                                  renderingMode: .alwaysOriginal),
+                         state: isCurrent(palette.style, color) ? .on : .off) { _ in
+                    apply(palette.style, color.hex)
+                }
+            })
+        }
+        guard !others.isEmpty else { return [row] }
+        let switcher = others.count == 1
+            ? others[0]
+            : UIMenu(title: L("Style"), image: UIImage(systemName: "textformat"), children: others)
+        return [row, UIMenu(options: .displayInline, children: [switcher])]
+    }
+
+    private func restyle(_ highlight: DCHighlight, style: DCAnnotationStyle, color: String) {
+        guard style != highlight.annotationStyle || color.caseInsensitiveCompare(highlight.color) != .orderedSame else { return }
+        viewModel.configuration.defaults.setLastHighlight(style: style, color: color)
         var updated = highlight
-        updated.style = style
+        updated.annotationStyle = style
+        updated.color = color
         updated.dateUpdated = Date().timeIntervalSince1970
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -115,6 +170,104 @@ extension DCWebView {
             // Saving tells the other pages (see `.dcHighlightDidChange`).
             await self.viewModel.saveHighlight(updated)
         }
+    }
+
+    // MARK: Actions
+
+    /// The actions in order, in sections: Note and Delete stand alone, the others are grouped.
+    private func actionElements(_ actions: [DCHighlightAction],
+                                highlight: DCHighlight?,
+                                systemLookUp: [UIMenuElement]) -> [UIMenuElement] {
+        var sections: [[UIMenuElement]] = []
+        var group: [UIMenuElement] = []
+        for action in actions {
+            let items = menuItems(for: action, highlight: highlight, systemLookUp: systemLookUp)
+            guard !items.isEmpty else { continue }
+            if action.standsAlone {
+                if !group.isEmpty { sections.append(group) }
+                group = []
+                sections.append(items)
+            } else {
+                group += items
+            }
+        }
+        if !group.isEmpty { sections.append(group) }
+        return sections.map { UIMenu(options: .displayInline, children: $0) }
+    }
+
+    /// The menu items for one action, on the tapped `highlight` or (when `nil`) the selection.
+    private func menuItems(for action: DCHighlightAction,
+                           highlight: DCHighlight?,
+                           systemLookUp: [UIMenuElement]) -> [UIMenuElement] {
+        switch action {
+        case .note:
+            let hasNote = highlight?.hasNote ?? false
+            return [UIAction(title: hasNote ? L("Edit Note") : L("Add Note"),
+                             image: UIImage(systemName: hasNote ? "note.text" : "note.text.badge.plus")) { [weak self] _ in
+                if let highlight { self?.viewModel.showNoote(highlight: highlight) } else { self?.addNoteToSelection() }
+            }]
+        case .copy:
+            return [UIAction(title: L("Copy"), image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
+                if let highlight { UIPasteboard.general.string = highlight.text } else { self?.copySelection() }
+            }]
+        case .share:
+            return [UIAction(title: L("Share…"), image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
+                if let highlight { self?.share(highlight) } else { self?.shareSelection() }
+            }]
+        case .search:
+            guard readerConfiguration.showsSearch else { return [] }
+            return [UIAction(title: L("Search"), image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
+                if let highlight { self?.viewModel.searchBook(for: highlight.text) } else { self?.searchBookForSelection() }
+            }]
+        case .lookUp:
+            // For a selection, Look Up and Translate come from the system (there's no public
+            // Translate API); its "Search Web" gives way to searching the book.
+            if highlight == nil, !systemLookUp.isEmpty { return systemLookUp }
+            return [UIAction(title: L("Look Up"), image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
+                if let highlight { self?.lookUp(highlight.text) } else { self?.lookUpSelection() }
+            }]
+        case .delete:
+            guard let highlight else { return [] }
+            return [UIAction(title: highlight.hasNote ? L("Delete Highlight and Note") : L("Delete Highlight"),
+                             image: UIImage(systemName: "trash"),
+                             attributes: .destructive) { [weak self] _ in
+                self?.delete(highlight)
+            }]
+        case .custom(let custom):
+            return [UIAction(title: custom.title, image: custom.systemImage.flatMap { UIImage(systemName: $0) }) { [weak self] _ in
+                self?.run(custom, on: highlight)
+            }]
+        }
+    }
+
+    /// Gives a custom action the text and where it is, coords and CFI.
+    func run(_ action: DCCustomHighlightAction, on highlight: DCHighlight?) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let text: String
+            let coords: String
+            if let highlight {
+                text = highlight.text
+                coords = highlight.coords
+            } else {
+                guard let selected = await self.selectedText(), let selection = await self.getCoordsFromSelection() else { return }
+                text = selected
+                coords = selection
+                await self.clearJSSelection()
+            }
+            let spineIndex = highlight?.spineIndex ?? self.viewModel.currentSpineIndex
+            var cfi: String?
+            if let book = self.viewModel.currentBook {
+                // Off screen: this page has highlights drawn, which CFIs don't count.
+                cfi = await DCCFIConverter(book: book).cfi(fromCoords: coords, spineIndex: spineIndex)
+            }
+            action.handler(DCHighlightActionContext(text: text, spineIndex: spineIndex, coords: coords,
+                                                    cfi: cfi, highlight: highlight))
+        }
+    }
+
+    private func lookUp(_ text: String) {
+        parentViewController?.present(UIReferenceLibraryViewController(term: text), animated: true)
     }
 
     private func delete(_ highlight: DCHighlight) {
@@ -136,6 +289,16 @@ extension DCWebView {
     }
 }
 
+extension DCHighlightAction {
+    /// Note and Delete get a section of their own.
+    var standsAlone: Bool {
+        switch self {
+        case .note, .delete: true
+        default: false
+        }
+    }
+}
+
 extension DCWebView {
     /// Whether a highlight or a link is under `point` (in `view`'s coordinates), in whichever
     /// reader web view is there, so the tap isn't also a page tap.
@@ -146,15 +309,5 @@ extension DCWebView {
         }
         guard let webView = hit as? DCWebView else { return false }
         return await webView.hasHighlight(at: view.convert(point, to: webView))
-    }
-}
-
-extension DCHighlightStyle {
-    /// The palette image for the highlight's current style: a checked circle, or a filled underline glyph.
-    var selectedMenuImage: UIImage? {
-        // The underline's swatch is a glyph; checked, it becomes a check in the underline's red.
-        let color = swatchColor ?? UIColor(red: 240 / 255, green: 40 / 255, blue: 20 / 255, alpha: 1)
-        // Tinted like the other swatches (the menu ignores palette colors): the check is a cut-out.
-        return UIImage(systemName: "checkmark.circle.fill")?.withTintColor(color, renderingMode: .alwaysOriginal)
     }
 }

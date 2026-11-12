@@ -54,6 +54,8 @@ struct DCContentsView: View {
     let markPageNumber: (DCHighlight) -> Int?
     /// "Title by Author", heading exported highlights.
     var bookByline: String = ""
+    /// Names the colors in the highlight filters.
+    var highlightMenu = DCHighlightMenuConfiguration()
     let highlightsProvider: () async -> [DCHighlight]
     let onSelectEntry: (DCContentsEntry) -> Void
     let onSelectMark: (DCHighlight) -> Void
@@ -86,6 +88,7 @@ struct DCContentsView: View {
                                                highlightsProvider: highlightsProvider,
                                                pageNumber: markPageNumber,
                                                exportHeading: bookByline,
+                                               highlightMenu: highlightMenu,
                                                onSelect: onSelectMark)
                 }
             }

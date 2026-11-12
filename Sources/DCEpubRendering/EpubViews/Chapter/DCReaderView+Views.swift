@@ -136,6 +136,7 @@ extension DCReaderView {
             pageNumber: { viewModel.bookPage(for: $0) },
             markPageNumber: { viewModel.bookPage(for: $0) },
             bookByline: viewModel.bookByline,
+            highlightMenu: viewModel.configuration.highlightMenu,
             highlightsProvider: {
                 await viewModel.allHighlights()
             },

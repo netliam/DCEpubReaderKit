@@ -16,11 +16,11 @@ extension DCWebView {
         case rectsForSelection
         case getCoordsFromSelection
         case getSelectionString
-        case highlight(cssClass: String, uuid: String)
+        case highlight(cssClass: String, uuid: String, color: String)
         case clearSelection
-        case highlightCoords(coords: String, cssClass: String, uuid: String, text: String)
+        case highlightCoords(coords: String, cssClass: String, uuid: String, text: String, color: String)
         case removeHighlightById(uuid: String)
-        case setStyle(uuid: String, cssClass: String)
+        case setStyle(uuid: String, cssClass: String, color: String)
         case setNote(uuid: String, hasNote: Bool)
         case isHighlightAtPoint(CGPoint)
 
@@ -32,16 +32,16 @@ extension DCWebView {
                 return "getCoordsFromSelection()"
             case .getSelectionString:
                 return "window.getSelection().toString()"
-            case let .highlight(cssClass, uuid):
-                return "highlightSelectionInPlace(\(jsLiteral(cssClass)),\(jsLiteral(uuid)))"
+            case let .highlight(cssClass, uuid, color):
+                return "highlightSelectionInPlace(\(jsLiteral(cssClass)),\(jsLiteral(uuid)),\(jsLiteral(color)))"
             case .clearSelection:
                 return "window.getSelection().removeAllRanges()"
-            case let .highlightCoords(coords, cssClass, uuid, text):
-                return "highlightCoords(\(jsLiteral(coords)),\(jsLiteral(cssClass)),\(jsLiteral(uuid)),\(jsLiteral(text)))"
+            case let .highlightCoords(coords, cssClass, uuid, text, color):
+                return "highlightCoords(\(jsLiteral(coords)),\(jsLiteral(cssClass)),\(jsLiteral(uuid)),\(jsLiteral(text)),\(jsLiteral(color)))"
             case let .removeHighlightById(uuid):
                 return "removeHighlightById(\(jsLiteral(uuid)))"
-            case let .setStyle(uuid, cssClass):
-                return "setHighlightStyleById(\(jsLiteral(uuid)),\(jsLiteral(cssClass)))"
+            case let .setStyle(uuid, cssClass, color):
+                return "setHighlightStyleById(\(jsLiteral(uuid)),\(jsLiteral(cssClass)),\(jsLiteral(color)))"
             case let .setNote(uuid, hasNote):
                 return "setHighlightNoteById(\(jsLiteral(uuid)),\(hasNote))"
             case let .isHighlightAtPoint(point):
@@ -58,56 +58,7 @@ extension DCWebView {
         }
     }
 
-    // MARK: Selection menu
-
-    /// The Books-style edit menu for selected text: a row of highlight colors, Add Note,
-    /// Look Up, Translate, Search, Copy and Share. Replaces everything else the system offers.
-    func selectionMenuElements(systemLookUp: [UIMenuElement]) -> [UIMenuElement] {
-        let styles = DCHighlightStyle.allCases.map { style in
-            // No title: the compact edit menu shows titles instead of images. VoiceOver reads the label.
-            let action = UIAction(title: "", image: style.menuImage) { [weak self] _ in
-                self?.highlightSelection(style: style)
-            }
-            action.accessibilityLabel = style.menuTitle
-            return action
-        }
-        let colors: UIMenu
-        if #available(iOS 17.0, *) {
-            colors = UIMenu(options: [.displayInline, .displayAsPalette], children: styles)
-        } else {
-            colors = UIMenu(options: .displayInline, children: styles)
-        }
-        colors.preferredElementSize = .small
-
-        let addNote = UIAction(title: L("Add Note"), image: UIImage(systemName: "note.text.badge.plus")) { [weak self] _ in
-            self?.addNoteToSelection()
-        }
-
-        // Look Up and Translate come from the system (there's no public Translate API); its
-        // "Search Web" gives way to searching the book.
-        var lookUp = systemLookUp
-        if lookUp.isEmpty {
-            lookUp = [UIAction(title: L("Look Up"), image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
-                self?.lookUpSelection()
-            }]
-        }
-        let search = UIAction(title: L("Search"), image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
-            self?.searchBookForSelection()
-        }
-        let copy = UIAction(title: L("Copy"), image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
-            self?.copySelection()
-        }
-        let share = UIAction(title: L("Share…"), image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
-            self?.shareSelection()
-        }
-
-        return [
-            colors,
-            UIMenu(options: .displayInline, children: [addNote]),
-            UIMenu(options: .displayInline, children: lookUp + (viewModel?.configuration.showsSearch ?? true ? [search] : []) + [copy]),
-            UIMenu(options: .displayInline, children: [share])
-        ]
-    }
+    // MARK: Selection menu (built in DCWebView+HighlightMenu.swift)
 
     /// The system's Look Up and Translate commands, without its web search.
     static func lookUpCommands(in menu: UIMenu?) -> [UIMenuElement] {
@@ -117,19 +68,20 @@ extension DCWebView {
         }
     }
 
-    /// Highlights the selection with `style` and saves it.
-    func highlightSelection(style: DCHighlightStyle) {
-        viewModel.configuration.defaults.setLastHighlightStyle(style)
+    /// Highlights the selection with `style` and `color` and saves it.
+    func highlightSelection(style: DCAnnotationStyle, color: String) {
+        viewModel.configuration.defaults.setLastHighlight(style: style, color: color)
         Task { @MainActor [weak self] in
-            await self?.saveSelection(type: .highlight, style: style)
+            await self?.saveSelection(type: .highlight, style: style, color: color)
         }
     }
 
-    /// Highlights the selection in the last color used, like Books, saves it as a note and opens
-    /// the note editor.
+    /// Highlights the selection in the last style and color used, like Books, saves it as a note
+    /// and opens the note editor.
     func addNoteToSelection() {
+        let look = currentLook()
         Task { @MainActor [weak self] in
-            guard let self, let highlight = await self.saveSelection(type: .note, style: self.viewModel.configuration.defaults.getLastHighlightStyle()) else { return }
+            guard let self, let highlight = await self.saveSelection(type: .note, style: look.style, color: look.color) else { return }
             self.viewModel.showNoote(highlight: highlight)
         }
     }
@@ -137,13 +89,13 @@ extension DCWebView {
     /// Draws and saves the selection, which may span paragraphs. Highlights it overlaps are merged
     /// into it, notes and all. `nil` when nothing is selected.
     @discardableResult
-    private func saveSelection(type: DCHighlight.MarkType, style: DCHighlightStyle) async -> DCHighlight? {
+    private func saveSelection(type: DCHighlight.MarkType, style: DCAnnotationStyle, color: String) async -> DCHighlight? {
         let merged = await mergeOverlappedHighlights()
         // Coords first: drawing the highlight splits the text nodes they're taken from.
         guard let coords = await getCoordsFromSelection(),
               let selectedText = await getSelectedText()?.trimmingCharacters(in: .whitespacesAndNewlines),
               !selectedText.isEmpty,
-              let uuid = await highlightSelection(cssClass: style.cssClass, uuid: UUID().uuidString) else {
+              let uuid = await highlightSelection(cssClass: style.cssClass, uuid: UUID().uuidString, color: color) else {
             // The merged highlights were only taken off the page; put them back.
             for highlight in merged {
                 await applyHighlight(highlight)
@@ -160,7 +112,8 @@ extension DCWebView {
             text: selectedText,
             coords: coords,
             note: note,
-            style: style
+            annotationStyle: style,
+            color: color
         )
         await viewModel.saveHighlight(highlight)
         // Only now that the merged highlight is saved: deleting first could lose their notes.
@@ -245,7 +198,7 @@ extension DCWebView {
             .joined(separator: "\n\n")
     }
 
-    private func getCoordsFromSelection() async -> String? {
+    func getCoordsFromSelection() async -> String? {
         try? await self.evaluateJavaScriptAsync(JSMethod.getCoordsFromSelection.rawValue) as? String
     }
 
@@ -253,11 +206,11 @@ extension DCWebView {
         try? await self.evaluateJavaScriptAsync(JSMethod.getSelectionString.rawValue) as? String
     }
 
-    private func highlightSelection(cssClass: String, uuid: String) async -> String? {
-        try? await self.evaluateJavaScriptAsync(JSMethod.highlight(cssClass: cssClass, uuid: uuid).rawValue) as? String
+    private func highlightSelection(cssClass: String, uuid: String, color: String) async -> String? {
+        try? await self.evaluateJavaScriptAsync(JSMethod.highlight(cssClass: cssClass, uuid: uuid, color: color).rawValue) as? String
     }
 
-    private func clearJSSelection() async {
+    func clearJSSelection() async {
         _ = try? await self.evaluateJavaScriptAsync(JSMethod.clearSelection.rawValue)
     }
 
@@ -270,7 +223,8 @@ extension DCWebView {
     /// Does nothing if the page doesn't show it.
     func updateDrawnHighlight(_ highlight: DCHighlight) async {
         _ = try? await evaluateJavaScriptAsync(JSMethod.setStyle(uuid: highlight.uuid,
-                                                                 cssClass: highlight.displayStyle.cssClass).rawValue)
+                                                                 cssClass: highlight.annotationStyle.cssClass,
+                                                                 color: highlight.color).rawValue)
         _ = try? await evaluateJavaScriptAsync(JSMethod.setNote(uuid: highlight.uuid, hasNote: highlight.hasNote).rawValue)
     }
 
@@ -296,9 +250,10 @@ extension DCWebView {
     func applyHighlight(_ highlight: DCHighlight) async {
         let js = JSMethod.highlightCoords(
             coords: highlight.coords,
-            cssClass: highlight.displayStyle.cssClass,
+            cssClass: highlight.annotationStyle.cssClass,
             uuid: highlight.uuid,
-            text: highlight.text
+            text: highlight.text,
+            color: highlight.color
         ).rawValue
         _ = try? await self.evaluateJavaScriptAsync(js)
         // If it was already drawn, this brings its color and note marker up to date.
@@ -315,10 +270,32 @@ extension DCHighlight {
 
 // MARK: - Highlight styles
 
-extension DCHighlightStyle {
-    /// Class in Style.css that draws the style.
+extension DCAnnotationStyle {
+    /// Class in Style.css that draws the style (in the `--dc-hl` color).
     var cssClass: String { "highlight-\(rawValue)" }
 
+    var menuTitle: String {
+        switch self {
+        case .highlight: L("Highlight")
+        case .underline: L("Underline")
+        case .squiggly: L("Squiggly")
+        case .strikethrough: L("Strikethrough")
+        }
+    }
+
+    /// SF Symbol for the style.
+    var systemImage: String {
+        switch self {
+        case .highlight: "highlighter"
+        case .underline: "underline"
+        case .squiggly: "scribble"
+        case .strikethrough: "strikethrough"
+        }
+    }
+}
+
+extension DCHighlightStyle {
+    /// The default palette's color names.
     var menuTitle: String {
         switch self {
         case .yellow: L("Yellow")
@@ -329,22 +306,18 @@ extension DCHighlightStyle {
         case .underline: L("Underline")
         }
     }
+}
 
-    /// Swatch color, matching Style.css. `nil` for the underline.
-    var swatchColor: UIColor? {
-        switch self {
-        case .yellow: UIColor(red: 1, green: 235 / 255, blue: 107 / 255, alpha: 1)
-        case .green: UIColor(red: 192 / 255, green: 237 / 255, blue: 114 / 255, alpha: 1)
-        case .blue: UIColor(red: 173 / 255, green: 216 / 255, blue: 1, alpha: 1)
-        case .pink: UIColor(red: 1, green: 176 / 255, blue: 202 / 255, alpha: 1)
-        case .purple: UIColor(red: 214 / 255, green: 184 / 255, blue: 245 / 255, alpha: 1)
-        case .underline: nil
-        }
-    }
-
-    /// A filled color circle, or the underline glyph.
-    var menuImage: UIImage? {
-        guard let swatchColor else { return UIImage(systemName: "underline") }
-        return UIImage(systemName: "circle.fill")?.withTintColor(swatchColor, renderingMode: .alwaysOriginal)
+extension UIColor {
+    /// `#RGB` or `#RRGGBB` (the `#` is optional); `nil` otherwise.
+    convenience init?(hex: String) {
+        var digits = hex.trimmingCharacters(in: .whitespaces)
+        if digits.hasPrefix("#") { digits.removeFirst() }
+        if digits.count == 3 { digits = digits.map { "\($0)\($0)" }.joined() }
+        guard digits.count == 6, let value = UInt32(digits, radix: 16) else { return nil }
+        self.init(red: CGFloat((value >> 16) & 0xFF) / 255,
+                  green: CGFloat((value >> 8) & 0xFF) / 255,
+                  blue: CGFloat(value & 0xFF) / 255,
+                  alpha: 1)
     }
 }

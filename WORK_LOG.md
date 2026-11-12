@@ -52,7 +52,8 @@ Handoff notes for continuing this work in Claude Code. They cover everything don
 | `6d81a7e` | `DCReaderConfiguration`; per-window lock and brightness; keyboard and trackpad paging; spreads by width. |
 | `256652e` | UI strings localized from the package's `Localizable.xcstrings`. |
 | `7a011a0` | EPUB CFI conversion (`DCCFIConverter`, `coordsToCFI`/`cfiToCoords`). |
-| (this commit) | README points at the fork; release `0.1.0`. |
+| `f33bfbd` | README points at the fork; release `0.1.0`. |
+| (this commit) | Handoff #12, #14, #15: CFI spine step from the OPF; highlight styles and colors as data with a configurable menu; whole-book progress for the delegate. Release `0.2.0`. |
 
 In total, against `main`: 74 files changed, about 8.4k insertions. The last eight commits account for 38 files and about 2.2k of them.
 
@@ -115,9 +116,33 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
   - `isHighlightElement`/`isHighlightClassName` recognise every highlight color. Previously only yellow and underline were recognised, so other colors became the blue search style.
   - `getNodeFromCoordFix` now skips the doctype, matching how coords are generated. XHTML chapters have `<?xml?>` and `<!DOCTYPE>` before `<html>`, so the second and later marks in a paragraph redrew on the wrong words or vanished. This bug predates the branch.
 
+## Highlight styles, colors and menu (0.2.0)
+
+- **Model:** `DCHighlight` stores `annotationStyle` (`DCAnnotationStyle`: highlight, underline, squiggly, strikethrough)
+  and `color` (`#RRGGBB`, kept exactly as given). Its `Codable` is hand-written so the old `style` key (a
+  `DCHighlightStyle` name) still decodes; encoding writes only the new keys. `DCHighlightStyle` remains for the kit's
+  default colors, and the `style:` init argument maps onto the two new fields. `displayStyle` was removed.
+- **Drawing:** each highlight span gets class `highlight-<annotationStyle>` and the color as the `--dc-hl` CSS variable
+  (`wrapRange`, `setHighlightStyleById`). `Style.css` draws the four styles from it; the per-color classes and their
+  night/red variants were removed. `HIGHLIGHT_CLASS` in `EpubUtil.js` lists the four style classes.
+- **Menu:** `DCHighlightMenuConfiguration` (on `DCReaderConfiguration.highlightMenu`): palettes per style, the
+  selection actions and the tapped-highlight actions, in order, plus custom actions. Both menus are built in
+  `DCWebView+HighlightMenu.swift`. The row shows the current style's colors, plus a glyph for each single-color style;
+  other styles go in a Style submenu (just the style's submenu when there's only one). Note and Delete get their own
+  section, the other actions share one (so the default selection menu now has Copy and Share in one section).
+- **Remembered:** the last style, and the last color per style (`DCLastAnnotationStyle`, `DCLastHighlightColors`). The
+  old `DCLastHighlightStyle` value is read if the new keys are missing.
+- **Highlights list:** filters by style and color (`Filter.look`), in palette order, then colors from elsewhere;
+  names come from the palettes.
+- **Example app:** stores `"<style> <#hex>"` in the existing `RBookMark.style` column (no schema change).
+- **Progress:** `DCReaderCoordsProtocol.handleProgress(book:progress:)` (default does nothing) with
+  `DCReaderProgress` (fraction, and page / total once counted), sent after `handleCoords` for page turns.
+- **CFI spine step:** `DCOPFParser` records `<spine>`'s position among `<package>`'s children
+  (`DCOPFPackage.spineStep`, `DCEpubBook.spineStep`); `DCCFIConverter` uses it instead of `/6`.
+
 ## Testing
 
-- Uses Swift Testing (129 tests). WebKit-backed suites are nested under `WebKitBackedTests` (in `DCSearchHighlightJSTests.swift`), which runs serially.
+- Uses Swift Testing (141 tests). WebKit-backed suites are nested under `WebKitBackedTests` (in `DCSearchHighlightJSTests.swift`), which runs serially.
 - Run via `xcodebuild`, because Xcode's in-memory file list can be stale for new files:
 
   ```sh
@@ -155,7 +180,6 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
 ## Known issues and ideas for next steps
 
 - Hidden controls may still be in the accessibility tree.
-- Overlapping highlights are refused, not merged.
-- The note icon sits inline after the highlight. It can shift a paragraph's line breaks slightly, and the highlight color (or underline) runs under it.
 - Footnotes from a separate endnotes file and web links are covered by tests but haven't been tried in the app.
-- Next from `MISSING_FEATURES.md`: merging overlapping highlights, the image viewer, two-page spreads, and read aloud.
+- The selection menu has no Delete: buildMenu is synchronous, so it can't ask the page whether a highlight is under the selection. Tap the highlight instead.
+- Next from `MISSING_FEATURES.md`: read aloud.

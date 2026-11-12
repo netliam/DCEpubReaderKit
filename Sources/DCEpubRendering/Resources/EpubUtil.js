@@ -563,9 +563,9 @@
         return offset + (offsetnode || 0);
     }
     
-    // Wrappers drawn for highlights (every color and the underline) and search matches. Coordinates
-    // skip them, so a highlight's coords stay valid however many others share its paragraph.
-    const HIGHLIGHT_CLASS = /^(highlight-(yellow|green|blue|pink|purple|underline)|highlight_search)$/;
+    // Wrappers drawn for highlights (each DCAnnotationStyle) and search matches. Coordinates skip
+    // them, so a highlight's coords stay valid however many others share its paragraph.
+    const HIGHLIGHT_CLASS = /^(highlight-(highlight|underline|squiggly|strikethrough)|highlight_search)$/;
     function isHighlightClassName(name){ return typeof name === 'string' && HIGHLIGHT_CLASS.test(name); }
     function isHighlightElement(el){ return !!el && el.nodeType === 1 && isHighlightClassName(el.className); }
 
@@ -744,7 +744,7 @@
         } catch (err) { return String(err); }
     }
     
-    function highlightCoords(mark, mark_type, guid, text) {
+    function highlightCoords(mark, mark_type, guid, text, color) {
         try {
             // Already drawn (pages of a chapter redraw each other's saves): keep it where it is.
             if (guid && highlightParts(guid).length) return 'drawn';
@@ -778,7 +778,7 @@
             iniNode = iniNode || tempIniNode;
             endNode = endNode || tempEndNode;
             
-            displayRange(document, iniNode, parseInt(iniOffset,10), endNode, parseInt(endOffset,10), 1, mark_type, mark, guid);
+            displayRange(document, iniNode, parseInt(iniOffset,10), endNode, parseInt(endOffset,10), 1, mark_type, mark, guid, color);
         } catch (err) { return String(err); }
     }
     
@@ -823,14 +823,14 @@
         return page;
     }
     
-    function displayRange(doc, anchorNode, anchorOffset, focusNode, focusOffset, id, cl, coords, guid) {
+    function displayRange(doc, anchorNode, anchorOffset, focusNode, focusOffset, id, cl, coords, guid, color) {
         if (!checkIfValid(anchorNode, anchorOffset, focusNode, focusOffset)) return false;
         const range = document.createRange();
         try {
             range.setStart(anchorNode, anchorOffset);
             range.setEnd(focusNode, focusOffset);
         } catch (_) { return false; }
-        return wrapRange(range, isHighlightClassName(cl) ? cl : 'highlight_search', guid);
+        return wrapRange(range, isHighlightClassName(cl) ? cl : 'highlight_search', guid, color);
     }
     
     // --------------------------------------------------
@@ -875,8 +875,9 @@
     }
     
     // Wraps the text in `range`. Refuses ranges that overlap another highlight: nested highlights
-    // would break coords, which only skip one level of highlight.
-    function wrapRange(range, cls, uuid) {
+    // would break coords, which only skip one level of highlight. `color` (any CSS color) is the
+    // --dc-hl variable Style.css draws the style with.
+    function wrapRange(range, cls, uuid, color) {
         const nodes = textNodesInRange(range);
         if (nodes.some(isInsideUserHighlight)) return false;
         const pieces = [];
@@ -892,6 +893,7 @@
         pieces.forEach(function (piece, index) {
             const span = document.createElement('span');
             span.className = cls;
+            if (color) span.style.setProperty('--dc-hl', color);
             if (uuid) {
                 span.setAttribute(HIGHLIGHT_ATTR, uuid);
                 if (index === 0) span.id = uuid;
@@ -1001,16 +1003,20 @@
         return JSON.stringify(uuids);
     }
 
-    // Highlights the selection with `cls` as `uuid`. Returns the uuid, or null if it couldn't.
-    function highlightSelectionInPlace(cls, uuid) {
+    // Highlights the selection with `cls` and `color` as `uuid`. Returns the uuid, or null if it couldn't.
+    function highlightSelectionInPlace(cls, uuid, color) {
         const range = normalizedSelectionRange();
         if (!range) return null;
-        return wrapRange(range, cls, uuid) ? uuid : null;
+        return wrapRange(range, cls, uuid, color) ? uuid : null;
     }
     
-    function setHighlightStyleById(uuid, cls) {
+    function setHighlightStyleById(uuid, cls, color) {
         const parts = highlightParts(uuid);
-        parts.forEach(function (el) { el.className = cls; });
+        parts.forEach(function (el) {
+            el.className = cls;
+            if (color) el.style.setProperty('--dc-hl', color);
+            else el.style.removeProperty('--dc-hl');
+        });
         return parts.length ? uuid : null;
     }
     

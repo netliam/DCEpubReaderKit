@@ -54,7 +54,7 @@ struct DCSearchHighlightJSTests {
         <p>The whale. A <i>Wh</i>ale!</p>
         <script>var whale = "not text";</script>
         <style>.whale { color: red; }</style>
-        <p>Tom &amp; whale &mdash; <span class="highlight-yellow">wHaLe</span> end</p>
+        <p>Tom &amp; whale &mdash; <span class="highlight-highlight">wHaLe</span> end</p>
         """
         let swiftText = DCHTMLText.bodyText(fromHTML: "<body>\(body)</body>")
         let swiftMatches = Self.matches(of: "whale", in: swiftText)

@@ -47,12 +47,9 @@ final class DCNotesViewModel: ObservableObject {
         highlight.text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// The highlight's color; underlined notes get the underline's red from Style.css.
+    /// The highlight's color.
     var quoteColor: Color {
-        if let swatch = highlight.displayStyle.swatchColor {
-            return Color(uiColor: swatch)
-        }
-        return Color(red: 240 / 255, green: 40 / 255, blue: 20 / 255)
+        Color(uiColor: UIColor(hex: highlight.color) ?? .systemYellow)
     }
 
     func noteDidChange(_ text: String) {

@@ -585,7 +585,18 @@ final class DCReaderViewModel: ObservableObject {
                 chapterURL: chapterURL,
                 isBookMark: isBookMark
             )
+            if !isBookMark {
+                delegate?.handleProgress(book: book, progress: progress(coords: coords))
+            }
         }
+    }
+
+    /// The whole-book place for the page on screen, as the progress bar shows it.
+    func progress(coords: String) -> DCReaderProgress {
+        let position = bookPagePosition
+        return DCReaderProgress(spineIndex: currentSelection, coords: coords,
+                                fraction: min(max(readingProgress, 0), 1),
+                                page: position?.page, totalPages: position?.total)
     }
 
     private func navigateToNextChapter() {

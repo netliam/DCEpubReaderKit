@@ -118,3 +118,36 @@ struct DCBackPositionTests {
         #expect(reader.consumeInitialJump(for: 0, chapterURL: chapterURL) == .coords("0000001>0000002|0000000"))
     }
 }
+
+/// The delegate hears where the reader is in the whole book, not just the chapter.
+@MainActor
+@Suite("Whole-book progress")
+struct DCReaderProgressTests {
+
+    private final class Delegate: DCReaderCoordsProtocol {
+        var progress: [DCReaderProgress] = []
+        func handleCoords(book: DCEpubBook, spineIndex: Int, coords: String, chapterURL: URL?, isBookMark: Bool) {}
+        func handleProgress(book: DCEpubBook, progress: DCReaderProgress) { self.progress.append(progress) }
+    }
+
+    @Test func reportedAfterEachPageTurnEstimatedUntilCounted() throws {
+        let url = try #require(Bundle.module.url(forResource: "MinimalEPUB", withExtension: nil, subdirectory: "Fixtures"))
+        let book = try DCEpubParser.parse(from: url)
+        let delegate = Delegate()
+        let reader = DCReaderViewModel(book: book, spineIndex: 0, userPreferencesProtocol: DCUserPreferencesMock(), delegate: delegate)
+        let chapterURL = try #require(book.chapterURL(forSpineIndex: 0))
+        reader.handle(.currentPage(index: 3, totalPages: 5, spineIndex: 0), chapterURL: chapterURL)
+        reader.handle(.coordsFirstNodeOfPage(orientation: .horizontal, spineIndex: 0, coords: "0000001>0000003|0000000",
+                                             isBookMark: false), chapterURL: chapterURL)
+        let progress = try #require(delegate.progress.last)
+        #expect(progress.coords == "0000001>0000003|0000000")
+        #expect(progress.page == nil && progress.totalPages == nil)
+        // Not counted yet: two of five pages into the first of the book's chapters.
+        #expect(abs(progress.fraction - (2.0 / 5.0) / Double(book.spine.count)) < 0.0001)
+
+        // Bookmarks aren't page turns.
+        reader.handle(.coordsFirstNodeOfPage(orientation: .horizontal, spineIndex: 0, coords: "x", isBookMark: true),
+                      chapterURL: chapterURL)
+        #expect(delegate.progress.count == 1)
+    }
+}

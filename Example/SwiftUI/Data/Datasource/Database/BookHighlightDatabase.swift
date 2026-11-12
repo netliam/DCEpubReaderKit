@@ -32,7 +32,7 @@ final class BookHighlightDatabase: BookHighlightDatabaseProtocol {
         mark.spineIndex = highlight.spineIndex
         mark.textNote = highlight.note
         mark.type = RBookMark.MarkType(highlight.type).rawValue
-        mark.style = highlight.style?.rawValue ?? ""
+        mark.style = "\(highlight.annotationStyle.rawValue) \(highlight.color)"
         mark.dateCreated = Int64(highlight.dateCreated * 1000)
         mark.dateUpdated = Int64(highlight.dateUpdated * 1000)
         try realm.write {
@@ -84,6 +84,8 @@ private extension RBookMark {
             note: textNote,
             chapterTitle: chapterTitle,
             style: DCHighlightStyle(rawValue: style),
+            annotationStyle: style.split(separator: " ").first.flatMap { DCAnnotationStyle(rawValue: String($0)) },
+            color: style.split(separator: " ").dropFirst().first.map(String.init),
             dateCreated: Double(dateCreated) / 1000,
             dateUpdated: Double(dateUpdated) / 1000
         )

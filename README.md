@@ -38,7 +38,7 @@ Most EPUB solutions are either:
 
 ### 🖍️ User interaction
 - Text selection
-- Highlights
+- Highlights: filled, underline, squiggly and strikethrough, in any color
 - Bookmarks
 - Notes
 
@@ -145,6 +145,35 @@ configuration.fonts = [DCReaderFont(name: "Literata", cssFamily: "Literata", fil
 DCReaderViewBuilder.build(book, spineIndex: 0, delegate: delegate, configuration: configuration)
 ```
 
+### Highlight menu
+
+`configuration.highlightMenu` sets the styles, colors and actions of the menus for selected text and for a tapped
+highlight. The default is the Books-style menu.
+
+```swift
+configuration.highlightMenu.palettes = [
+    DCHighlightPalette(style: .highlight, colors: [("Yellow", "#FACC15"), ("Green", "#4ADE80")]),
+    DCHighlightPalette(style: .squiggly, colors: [("Crimson", "#DC143C"), ("Dodger Blue", "#1E90FF")])
+]
+configuration.highlightMenu.selectionActions = [.note, .search, .copy, .custom(sendToNotebook)]
+configuration.highlightMenu.highlightActions = [.note, .copy, .delete]
+
+let sendToNotebook = DCCustomHighlightAction(title: "Send to Notebook", systemImage: "book") { context in
+    // context.text, .spineIndex, .coords, .cfi, and .highlight for a tapped highlight
+}
+```
+
+The menu shows the colors of the current style (the tapped highlight's, or the last one used) and a Style submenu
+for the others. A style with one color appears as its own button in the row. Highlights store `annotationStyle` and
+`color` (`#RRGGBB`) separately and keep any color, including ones the palettes don't offer, so the delegate's
+`save(highlight:)` gets them unchanged. Highlights saved by older versions (a `style` name such as `"pink"`) still
+decode.
+
+### Progress
+
+Besides `handleCoords`, the delegate gets `handleProgress(book:progress:)` after each page turn: the fraction of the
+whole book read, and the whole-book page and page count once the book has been counted (as the reader shows "11 of 39").
+
 Use the same `bookId` with `DCStoreReaderDelegate(store:bookId:)`. For rotation lock, return
 `DCReaderOrientationLock.supportedOrientations(for: window)` from your app delegate's
 `application(_:supportedInterfaceOrientationsFor:)`.
@@ -159,6 +188,9 @@ let converter = DCCFIConverter(book: book)
 let cfi = await converter.cfi(fromCoords: highlight.coords, spineIndex: highlight.spineIndex)
 let place = await converter.coords(fromCFI: "epubcfi(/6/4[ch1]!/4/2/1:5)")   // (spineIndex, coords)
 ```
+
+The spine step (`/6` above) is `<spine>`'s real position in the book's OPF (`DCEpubBook.spineStep`), as foliate-js and
+epub.js compute it.
 
 ## 🔍 Search
 

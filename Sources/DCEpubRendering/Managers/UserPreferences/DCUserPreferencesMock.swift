@@ -15,7 +15,8 @@ final class DCUserPreferencesMock: DCUserPreferencesProtocol {
     var rotationLock = false
     var fontChoice = DCFontFamily.original.rawValue
     var themeColors: [String: DCThemeColors] = [:]
-    var lastHighlightStyle: DCHighlightStyle = .yellow
+    var lastAnnotationStyle: DCAnnotationStyle?
+    var lastHighlightColors: [DCAnnotationStyle: String] = [:]
 
     func setValue(key: DCUserPreferences.CacheKey, type: Any) {}
     func getFontSize() -> DCFontSize {
@@ -61,6 +62,10 @@ final class DCUserPreferencesMock: DCUserPreferencesProtocol {
     func getFontChoice() -> String { fontChoice }
     func getThemeColors() -> [String: DCThemeColors] { themeColors }
     func setThemeColors(_ colors: [String: DCThemeColors]) { themeColors = colors }
-    func getLastHighlightStyle() -> DCHighlightStyle { lastHighlightStyle }
-    func setLastHighlightStyle(_ style: DCHighlightStyle) { lastHighlightStyle = style }
+    func getLastAnnotationStyle() -> DCAnnotationStyle? { lastAnnotationStyle }
+    func getLastHighlightColor(for style: DCAnnotationStyle) -> String? { lastHighlightColors[style] }
+    func setLastHighlight(style: DCAnnotationStyle, color: String) {
+        lastAnnotationStyle = style
+        lastHighlightColors[style] = color
+    }
 }

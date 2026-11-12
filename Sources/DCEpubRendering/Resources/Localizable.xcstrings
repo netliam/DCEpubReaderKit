@@ -4,6 +4,9 @@
     "%@ (Dark)": {
       "extractionState": "manual"
     },
+    "%@, current": {
+      "extractionState": "manual"
+    },
     "%lld of %lld": {
       "extractionState": "manual"
     },
@@ -128,6 +131,9 @@
       "extractionState": "manual"
     },
     "Guide": {
+      "extractionState": "manual"
+    },
+    "Highlight": {
       "extractionState": "manual"
     },
     "Highlights": {
@@ -296,6 +302,12 @@
       "extractionState": "manual"
     },
     "Sort By": {
+      "extractionState": "manual"
+    },
+    "Squiggly": {
+      "extractionState": "manual"
+    },
+    "Strikethrough": {
       "extractionState": "manual"
     },
     "Style": {

@@ -35,6 +35,8 @@ public struct DCReaderConfiguration {
     public var onOpenExternalURL: (@MainActor (URL) -> Void)?
     /// Fonts offered in Customize besides the built-in ones.
     public var fonts: [DCReaderFont] = []
+    /// The styles, colors and actions of the selection and highlight menus.
+    public var highlightMenu = DCHighlightMenuConfiguration()
 
     public init() {}
 }

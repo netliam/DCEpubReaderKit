@@ -14,12 +14,14 @@ final class DCMarksViewBuilder {
                highlightsProvider: @escaping () async -> [DCHighlight],
                pageNumber: @escaping (DCHighlight) -> Int? = { _ in nil },
                exportHeading: String? = nil,
+               highlightMenu: DCHighlightMenuConfiguration = DCHighlightMenuConfiguration(),
                onSelect: @escaping (DCHighlight) -> Void) -> DCMarksView {
         let viewModel = DCMarksViewModel(
             types: types,
             highlightsProvider: highlightsProvider,
             pageNumber: pageNumber,
             exportHeading: exportHeading,
+            highlightMenu: highlightMenu,
             onSelect: onSelect
         )
         return DCMarksView(viewModel: viewModel)

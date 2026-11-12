@@ -51,13 +51,14 @@ struct DCMarksFilterTests {
 
     @Test func offersOnlyFiltersThatMatchSomething() async {
         let viewModel = await loaded(types: [.highlight, .note])
-        #expect(viewModel.availableFilters == [.all, .notes, .style(.yellow), .style(.green), .style(.underline)])
+        #expect(viewModel.availableFilters == [.all, .notes, .look(.highlight, "#FFEB6B"), .look(.highlight, "#C0ED72"),
+                                               .look(.underline, "#F02814")])
         #expect(viewModel.showsFilters)
     }
 
     @Test func filtersByColorAndByNote() async {
         let viewModel = await loaded(types: [.highlight, .note])
-        viewModel.filter = .style(.green)
+        viewModel.filter = .look(.highlight, "#C0ED72")
         #expect(viewModel.filteredHighlights.map(\.uuid) == ["green-with-note", "late-green"])
         // Any highlight with a note counts, whatever its type.
         viewModel.filter = .notes
@@ -132,5 +133,18 @@ struct DCMarksExportTests {
         let viewModel = DCMarksViewModel(types: [.bookMark], highlightsProvider: { [] }, onSelect: { _ in })
         await viewModel.loadIfNeeded()
         #expect(!viewModel.canExport)
+    }
+
+    @Test func colorsFromElsewhereGetAFilterAfterThePalettes() async {
+        let crimson = DCHighlight(uuid: "web", bookId: "b", chapterId: "c0", spineIndex: 0, type: .highlight,
+                                  text: "w", coords: "0000001>0000001|0000000", annotationStyle: .squiggly, color: "#dc143c")
+        let yellow = DCHighlight(uuid: "y", bookId: "b", chapterId: "c0", spineIndex: 0, type: .highlight,
+                                 text: "y", coords: "0000001>0000002|0000000", style: .yellow)
+        let viewModel = DCMarksViewModel(types: [.highlight], highlightsProvider: { [crimson, yellow] }, onSelect: { _ in })
+        await viewModel.loadIfNeeded()
+        #expect(viewModel.availableFilters == [.all, .look(.highlight, "#FFEB6B"), .look(.squiggly, "#DC143C")])
+        #expect(viewModel.name(of: .squiggly, color: "#DC143C") == "Squiggly")
+        viewModel.filter = DCMarksViewModel.Filter.look(.squiggly, "#DC143C")
+        #expect(viewModel.filteredHighlights.map { $0.uuid } == ["web"])
     }
 }

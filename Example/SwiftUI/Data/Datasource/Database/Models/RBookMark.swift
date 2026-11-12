@@ -34,7 +34,7 @@ final class RBookMark: Object {
     @Persisted var spineIndex: Int = 0
     @Persisted var textNote: String = ""
     @Persisted var type: String = ""
-    /// Highlight color or underline (`DCHighlightStyle` raw value); empty for older marks.
+    /// "<DCAnnotationStyle> <#RRGGBB>"; older marks have a `DCHighlightStyle` name, or nothing.
     @Persisted var style: String = ""
     @Persisted var lastcoords: String = ""
     @Persisted var lastchapterid: String = ""

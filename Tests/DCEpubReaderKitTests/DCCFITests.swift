@@ -86,7 +86,7 @@ extension WebKitBackedTests {
                 const t = document.querySelector('#one').lastChild;
                 const r = document.createRange(); r.setStart(t, 1); r.setEnd(t, 4);
                 const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-                return highlightSelectionInPlace('highlight-yellow', 'h1');
+                return highlightSelectionInPlace('highlight-highlight', 'h1');
             })()
             """, webView)
             // "r" is now inside the highlight; coords skip wrappers, so they're unchanged, and so is the CFI.
@@ -111,5 +111,36 @@ extension WebKitBackedTests {
             #expect(await converter.coords(fromCFI: "epubcfi(/6/2!/4/2/1:3)")?.coords == place.coords)
             #expect(await converter.coords(fromCFI: "epubcfi(/6/40!/4/2/1:3)") == nil)
         }
+    }
+}
+
+/// The CFI's spine step comes from where `<spine>` really is in the package, as other readers take it.
+@Suite("CFI spine step")
+struct DCCFISpineStepTests {
+
+    private func spineStep(packageChildren: String) throws -> Int {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).opf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try """
+        <?xml version="1.0"?>
+        <package xmlns="http://www.idpf.org/2007/opf" version="3.0">\(packageChildren)</package>
+        """.write(to: url, atomically: true, encoding: .utf8)
+        return try DCOPFParser(opfURL: url).parse().spineStep
+    }
+
+    @Test func thirdElementIsSix() throws {
+        #expect(try spineStep(packageChildren: "<metadata/><manifest/><spine><itemref idref='a'/></spine>") == 6)
+    }
+
+    @Test func elementsBeforeTheSpineMoveIt() throws {
+        let children = "<metadata/><manifest/><bindings/><collection role='x'><link href='a'/></collection><spine/>"
+        #expect(try spineStep(packageChildren: children) == 10)
+    }
+
+    @Test @MainActor func converterUsesTheBooksStep() throws {
+        let book = DCEpubBook(packagePath: "", metadata: DCOPFMetadata(), manifest: [],
+                              spine: [DCSpineItem(idref: "ch1", linear: true, properties: nil)],
+                              toc: [], resourcesRoot: URL(fileURLWithPath: "/"), spineStep: 8)
+        #expect(DCCFIConverter.spineStep(0, in: book) == "/8/2[ch1]")
     }
 }

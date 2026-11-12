@@ -28,6 +28,9 @@ enum DCUserPreferences {
         case wordSpacing
         // Keys kept from when these were stored separately.
         case themeColors = "DCThemeColors"
+        /// Older versions' last highlight color (a `DCHighlightStyle` name), read once.
         case lastHighlightStyle = "DCLastHighlightStyle"
+        case lastAnnotationStyle = "DCLastAnnotationStyle"
+        case lastHighlightColors = "DCLastHighlightColors"
     }
 }

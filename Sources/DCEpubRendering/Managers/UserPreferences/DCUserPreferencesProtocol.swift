@@ -28,9 +28,11 @@ protocol DCUserPreferencesProtocol {
     /// Custom theme colors, keyed by `DCThemeColorStore.key`.
     func getThemeColors() -> [String: DCThemeColors]
     func setThemeColors(_ colors: [String: DCThemeColors])
-    /// The color last chosen for a highlight (yellow at first); Add Note uses it.
-    func getLastHighlightStyle() -> DCHighlightStyle
-    func setLastHighlightStyle(_ style: DCHighlightStyle)
+    /// The style last chosen for a highlight, and the color last chosen in each style; Add Note
+    /// and the menus start from them.
+    func getLastAnnotationStyle() -> DCAnnotationStyle?
+    func getLastHighlightColor(for style: DCAnnotationStyle) -> String?
+    func setLastHighlight(style: DCAnnotationStyle, color: String)
 }
 
 extension UserDefaults: DCUserPreferencesProtocol {
@@ -142,11 +144,26 @@ extension UserDefaults: DCUserPreferencesProtocol {
         set(try? JSONEncoder().encode(colors), forKey: DCUserPreferences.CacheKey.themeColors.rawValue)
     }
 
-    func getLastHighlightStyle() -> DCHighlightStyle {
-        string(forKey: DCUserPreferences.CacheKey.lastHighlightStyle.rawValue).flatMap(DCHighlightStyle.init(rawValue:)) ?? .yellow
+    /// Before styles and colors were separate, one `DCHighlightStyle` name was kept.
+    private var legacyHighlightStyle: DCHighlightStyle? {
+        string(forKey: DCUserPreferences.CacheKey.lastHighlightStyle.rawValue).flatMap(DCHighlightStyle.init(rawValue:))
     }
 
-    func setLastHighlightStyle(_ style: DCHighlightStyle) {
-        set(style.rawValue, forKey: DCUserPreferences.CacheKey.lastHighlightStyle.rawValue)
+    func getLastAnnotationStyle() -> DCAnnotationStyle? {
+        string(forKey: DCUserPreferences.CacheKey.lastAnnotationStyle.rawValue).flatMap(DCAnnotationStyle.init(rawValue:))
+            ?? legacyHighlightStyle?.annotationStyle
+    }
+
+    func getLastHighlightColor(for style: DCAnnotationStyle) -> String? {
+        let colors = dictionary(forKey: DCUserPreferences.CacheKey.lastHighlightColors.rawValue) as? [String: String]
+        if let color = colors?[style.rawValue] { return color }
+        return legacyHighlightStyle.flatMap { $0.annotationStyle == style ? $0.color : nil }
+    }
+
+    func setLastHighlight(style: DCAnnotationStyle, color: String) {
+        var colors = dictionary(forKey: DCUserPreferences.CacheKey.lastHighlightColors.rawValue) as? [String: String] ?? [:]
+        colors[style.rawValue] = color
+        set(colors, forKey: DCUserPreferences.CacheKey.lastHighlightColors.rawValue)
+        set(style.rawValue, forKey: DCUserPreferences.CacheKey.lastAnnotationStyle.rawValue)
     }
 }

@@ -42,6 +42,10 @@ public final class DCOPFParser: NSObject, XMLParserDelegate {
 
     private var currentMetaProperty: String?
 
+    /// Element depth (1 = `<package>`) and how many of the package's child elements have started.
+    private var depth = 0
+    private var packageChildren = 0
+
     // MARK: Init
 
     public init(opfURL: URL) {
@@ -71,6 +75,8 @@ public final class DCOPFParser: NSObject, XMLParserDelegate {
         inSpine = false
         inGuide = false
         pendingCoverRef = nil
+        depth = 0
+        packageChildren = 0
         coverImageHref = nil
         coverImageURL = nil
 
@@ -97,6 +103,11 @@ extension DCOPFParser {
                        attributes attributeDict: [String: String] = [:]) {
         textBuffer.removeAll(keepingCapacity: true)
         let lowerName = name.lowercased()
+        depth += 1
+        if depth == 2 {
+            packageChildren += 1
+            if lowerName == "spine" { pkg.spineStep = 2 * packageChildren }
+        }
 
         // Secciones: solo setea flags aquí (sin lógica adicional)
         switch lowerName {
@@ -184,6 +195,7 @@ extension DCOPFParser {
                        qualifiedName qName: String?) {
 
         let lower = name.lowercased()
+        depth -= 1
 
         if inMetadata {
             handleMetadataEndElement(lower: lower, qName: qName, namespaceURI: namespaceURI)

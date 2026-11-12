@@ -16,7 +16,8 @@ final class DCMarksViewModel: ObservableObject {
         case all
         /// Highlights with a note.
         case notes
-        case style(DCHighlightStyle)
+        /// Highlights drawn in this style and color (`#RRGGBB`, uppercased).
+        case look(DCAnnotationStyle, String)
     }
 
     enum Sort: Hashable, CaseIterable {
@@ -46,14 +47,18 @@ final class DCMarksViewModel: ObservableObject {
     let pageNumber: (DCHighlight) -> Int?
     /// Heads exported highlights ("Title by Author"); `nil` when this list doesn't export.
     let exportHeading: String?
+    /// Names the colors in the filters.
+    let highlightMenu: DCHighlightMenuConfiguration
 
     init(types: [DCHighlight.MarkType] = [.highlight, .note, .bookMark],
          highlightsProvider: @escaping () async -> [DCHighlight],
          pageNumber: @escaping (DCHighlight) -> Int? = { _ in nil },
          exportHeading: String? = nil,
+         highlightMenu: DCHighlightMenuConfiguration = DCHighlightMenuConfiguration(),
          onSelect: @escaping (DCHighlight) -> Void) {
         self.pageNumber = pageNumber
         self.exportHeading = exportHeading
+        self.highlightMenu = highlightMenu
         self.types = types
         self.highlightsProvider = highlightsProvider
         self.onSelect = onSelect
@@ -69,15 +74,28 @@ final class DCMarksViewModel: ObservableObject {
         types.contains(.highlight) && !marks.isEmpty
     }
 
-    /// The filters worth offering: All, Notes if any mark has one, and each color in use.
+    /// The filters worth offering: All, Notes if any mark has one, and each style and color in use
+    /// (in the order of the menu's palettes, then the order they first appear).
     var availableFilters: [Filter] {
         var filters: [Filter] = [.all]
         if marks.contains(where: \.hasNote) {
             filters.append(.notes)
         }
-        let styles = Set(marks.map(\.displayStyle))
-        filters += DCHighlightStyle.allCases.filter(styles.contains).map(Filter.style)
-        return filters
+        var looks: [Filter] = []
+        for mark in marks.sorted(by: isBefore) where !looks.contains(Self.look(of: mark)) {
+            looks.append(Self.look(of: mark))
+        }
+        let order = highlightMenu.palettes.flatMap { palette in palette.colors.map { Filter.look(palette.style, $0.hex.uppercased()) } }
+        return filters + looks.sorted { (order.firstIndex(of: $0) ?? .max) < (order.firstIndex(of: $1) ?? .max) }
+    }
+
+    static func look(of mark: DCHighlight) -> Filter {
+        .look(mark.annotationStyle, mark.color.uppercased())
+    }
+
+    /// The color's name from the palettes, else the style's name.
+    func name(of style: DCAnnotationStyle, color: String) -> String {
+        highlightMenu.colorName(color, style: style) ?? style.menuTitle
     }
 
     var filteredHighlights: [DCHighlight] {
@@ -85,7 +103,7 @@ final class DCMarksViewModel: ObservableObject {
             switch filter {
             case .all: true
             case .notes: mark.hasNote
-            case .style(let style): mark.displayStyle == style
+            case .look: Self.look(of: mark) == filter
             }
         }
         switch sort {

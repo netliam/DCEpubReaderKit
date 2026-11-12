@@ -16,6 +16,9 @@ public protocol DCReaderCoordsProtocol {
                       chapterURL: URL?,
                       isBookMark: Bool)
 
+    /// Where the reader is in the whole book, after each `handleCoords` for a page turn (not bookmarks).
+    func handleProgress(book: DCEpubBook, progress: DCReaderProgress)
+
     func save(highlight: DCHighlight) async
     func deleteHighlight(uuid: String, book: DCEpubBook) async
     func highlights(for book: DCEpubBook) async -> [DCHighlight]?
@@ -23,6 +26,8 @@ public protocol DCReaderCoordsProtocol {
 }
 
 public extension DCReaderCoordsProtocol {
+    func handleProgress(book: DCEpubBook, progress: DCReaderProgress) {}
+
     func save(highlight: DCHighlight) async {}
 
     func deleteHighlight(uuid: String, book: DCEpubBook) async {}
@@ -33,6 +38,27 @@ public extension DCReaderCoordsProtocol {
 
     func highlights(for book: DCEpubBook, chapterId: String) async -> [DCHighlight]? {
         nil
+    }
+}
+
+/// The reader's place in the whole book, as the progress bar shows it ("11 of 39").
+public struct DCReaderProgress: Equatable, Sendable {
+    public let spineIndex: Int
+    public let coords: String
+    /// Fraction of the book read, 0...1: `page / totalPages` once counted, else estimated from
+    /// chapters (the chapter index plus the fraction of the chapter read).
+    public let fraction: Double
+    /// Whole-book page and page count, once the book has been counted (`nil` until then). They
+    /// depend on the text size, layout and window size.
+    public let page: Int?
+    public let totalPages: Int?
+
+    public init(spineIndex: Int, coords: String, fraction: Double, page: Int?, totalPages: Int?) {
+        self.spineIndex = spineIndex
+        self.coords = coords
+        self.fraction = fraction
+        self.page = page
+        self.totalPages = totalPages
     }
 }
 
