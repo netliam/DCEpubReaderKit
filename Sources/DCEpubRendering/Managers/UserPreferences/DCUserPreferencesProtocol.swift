@@ -125,6 +125,7 @@ extension UserDefaults: DCUserPreferencesProtocol {
         }
         // Justified unless turned off.
         layout.justified = object(forKey: Key.justifyText.rawValue) as? Bool ?? true
+        layout.allowsSpreads = object(forKey: Key.allowSpreads.rawValue) as? Bool ?? true
         return layout
     }
 

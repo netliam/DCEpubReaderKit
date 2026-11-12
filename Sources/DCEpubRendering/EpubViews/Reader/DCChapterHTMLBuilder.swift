@@ -39,7 +39,7 @@ enum DCChapterHTMLBuilder {
             .map { String($0.dropFirst().dropLast()) } ?? "\"\""
         let headInject =
         """
-        <script>window.dcChapterURL = \(chapterURLLiteral);</script>\n
+        <script>window.dcChapterURL = \(chapterURLLiteral); window.dcAllowSpreads = \(userPreferences.getTextLayout().allowsSpreads);</script>\n
         <link rel='stylesheet' type='text/css' href=\"\(style)\">\n
         <script type='text/javascript' src=\"\(epubHelper)\"></script>\n
         <script type='text/javascript' src=\"\(dohighlight)\"></script>\n

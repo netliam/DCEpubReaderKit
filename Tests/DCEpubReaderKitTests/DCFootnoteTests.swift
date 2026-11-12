@@ -140,6 +140,40 @@ extension WebKitBackedTests {
             #expect(try await action("r8", in: webView)["kind"] == "link")
         }
 
+        /// Wide landscape pages show two columns (a spread); pages stay one screen apart.
+        @Test func landscapePagesShowTwoColumnsWhenAllowed() async throws {
+            let script = try String(contentsOf: Self.util, encoding: .utf8)
+            let viewport = "<meta name='viewport' content='width=device-width, initial-scale=1.0'>"
+            let text = String(repeating: "<p>A line of text that goes on for a while to fill the columns of the page.</p>", count: 60)
+            func layout(allow: Bool) async throws -> [String: Double] {
+                let html = "<html><head>\(viewport)<script>window.dcAllowSpreads = \(allow);</script><script>\(script)</script></head><body>\(text)</body></html>"
+                let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 800, height: 400))
+                let loader = NavigationWaiter()
+                webView.navigationDelegate = loader
+                try await loader.load(html, in: webView)
+                let raw = try #require(try await webView.evaluateJavaScript("""
+                (function () {
+                    const pages = Number(applyHorizontalPagination());
+                    const lefts = Array.from(document.querySelectorAll('p')).map(function (p) { return p.getClientRects()[0].left; });
+                    const onFirstPage = lefts.filter(function (l) { return l < window.innerWidth; });
+                    return JSON.stringify({ pages: pages, perPage: columnsPerPage(), columns: Number(document.body.style.webkitColumnCount),
+                                            secondColumn: Math.max.apply(null, onFirstPage), width: window.innerWidth,
+                                            scrollWidth: document.scrollingElement.scrollWidth });
+                })()
+                """) as? String)
+                return try JSONDecoder().decode([String: Double].self, from: Data(raw.utf8))
+            }
+            let spread = try await layout(allow: true)
+            #expect(spread["perPage"] == 2)
+            #expect(spread["columns"] == (spread["pages"] ?? 0) * 2)
+            #expect(abs((spread["secondColumn"] ?? 0) - (spread["width"] ?? 0) / 2) < 2, "\(spread)")
+            #expect(abs((spread["scrollWidth"] ?? 0) - (spread["pages"] ?? 0) * (spread["width"] ?? 0)) < 2, "\(spread)")
+
+            let single = try await layout(allow: false)
+            #expect(single["perPage"] == 1)
+            #expect((single["pages"] ?? 0) > (spread["pages"] ?? 0))
+        }
+
         @Test func headingSplitAcrossPagesOpensOnItsFirstPage() async throws {
             let script = try String(contentsOf: Self.util, encoding: .utf8)
             // A long heading that pagination splits over pages 0 and 1.

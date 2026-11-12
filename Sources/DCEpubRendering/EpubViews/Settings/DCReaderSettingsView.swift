@@ -28,6 +28,8 @@ struct DCReaderSettingsView: View {
 
     var body: some View {
         NavigationStack {
+            // Scrolls on short screens (landscape), where the controls don't fit under the title.
+            ScrollView {
             VStack(spacing: Constants.spacing) {
                 HStack(spacing: 12) {
                     textSizeControl
@@ -44,11 +46,11 @@ struct DCReaderSettingsView: View {
                         .background(.quaternary, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                // Keep the controls at the top when the card is dragged to full height.
-                Spacer(minLength: 0)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
+            }
+            .scrollBounceBehaviorBasedOnSize()
             .modifier(DCClearNavigationBackground())
             .navigationTitle("Themes & Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -248,6 +250,12 @@ struct DCReaderCustomizeView: View {
                     set: { viewModel.setRotationLock($0) }
                 ))
                 if !viewModel.isScrolling {
+                    Toggle("Allow Multiple Columns", isOn: Binding(
+                        get: { viewModel.textLayout.allowsSpreads },
+                        set: { viewModel.setAllowsSpreads($0) }
+                    ))
+                }
+                if !viewModel.isScrolling {
                     Picker("Page Turn", selection: Binding(
                         get: { viewModel.selectedTransition },
                         set: { viewModel.select($0) }
@@ -336,3 +344,15 @@ enum DCScreenBrightness {
 }
 
 #endif
+
+private extension View {
+    /// Doesn't bounce when everything fits (iOS 16.4 and later).
+    @ViewBuilder
+    func scrollBounceBehaviorBasedOnSize() -> some View {
+        if #available(iOS 16.4, *) {
+            scrollBounceBehavior(.basedOnSize)
+        } else {
+            self
+        }
+    }
+}

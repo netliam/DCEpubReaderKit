@@ -306,10 +306,12 @@ struct DCTextLayout: Equatable, Sendable {
     var margins: DCPageMargins = .normal
     /// Justified, like the reader has always been; off aligns text to the start of the line.
     var justified: Bool = true
+    /// Two columns side by side on wide landscape pages (Books' "Allow Multiple Columns").
+    var allowsSpreads: Bool = true
 
     /// Part of the layout ids that decide when pages are counted and laid out again.
     var id: String {
-        "\(lineSpacing.rawValue)-\(margins.rawValue)-\(justified ? "justified" : "ragged")"
+        "\(lineSpacing.rawValue)-\(margins.rawValue)-\(justified ? "justified" : "ragged")-\(allowsSpreads ? "spreads" : "single")"
     }
 
     /// The CSS that applies it (margins are native insets around the web view).

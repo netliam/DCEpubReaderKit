@@ -22,6 +22,7 @@ final class DCUserPreferences: DCUserPreferencesProtocol {
         case pageMargins
         case justifyText
         case rotationLock
+        case allowSpreads
     }
 
     private let userPreferences: DCUserPreferencesProtocol

@@ -144,6 +144,11 @@ final class DCReaderSettingsViewModel: ObservableObject {
         textLayout.margins = margins
     }
 
+    func setAllowsSpreads(_ allowed: Bool) {
+        userPreferences.setValue(key: .allowSpreads, type: allowed)
+        textLayout.allowsSpreads = allowed
+    }
+
     func setJustified(_ justified: Bool) {
         userPreferences.setValue(key: .justifyText, type: justified)
         textLayout.justified = justified

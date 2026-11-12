@@ -77,7 +77,8 @@
         const ourH = window.innerHeight;
         const ourW = window.innerWidth;
         const fullH = d.offsetHeight;
-        let pageCount = Math.max(1, Math.ceil(fullH / ourH));
+        const perPage = columnsPerPage();
+        let pageCount = Math.max(1, Math.ceil(fullH / ourH / perPage));
 
         // Leave a small safe inset to avoid clipping descenders at the bottom
         const safeBottomInset = 28;
@@ -97,9 +98,11 @@
         // this the width below would transition in over 0.6 s instead of applying now.
         document.documentElement.style.transition = 'none';
         document.documentElement.style.webkitTransition = 'none';
+        // With two columns a page (a spread), 2n columns in the same width are each half a page
+        // minus the gap, so pages still start every innerWidth.
         function layoutColumns(count) {
             d.style.width = `${(ourW * count) - columnGap}px`;
-            d.style.webkitColumnCount = count;
+            d.style.webkitColumnCount = count * perPage;
             document.documentElement.style.minWidth = `${ourW * count}px`;
         }
         layoutColumns(pageCount);
@@ -113,6 +116,12 @@
         }
 
         return String(pageCount);
+    }
+
+    // Two columns side by side on a wide, landscape page (a spread, like Books), when allowed.
+    function columnsPerPage() {
+        const w = window.innerWidth, h = window.innerHeight;
+        return (window.dcAllowSpreads && w > h && w >= 600) ? 2 : 1;
     }
 
     function scrollToLastHorizontalPage() {
@@ -225,7 +234,10 @@
                 rects.push(r);
             }
         });
-        rects.sort(function (a, b) { return (a.top - b.top) || (a.left - b.left); });
+        // Reading order: down the left column of a spread, then down the right one.
+        const columnWidth = width / columnsPerPage();
+        const columnOf = function (r) { return Math.floor(Math.max(0, r.left) / columnWidth); };
+        rects.sort(function (a, b) { return (columnOf(a) - columnOf(b)) || (a.top - b.top) || (a.left - b.left); });
 
         // Fragments whose vertical midpoint falls inside the previous line belong to it
         // (inline elements, superscripts, highlight spans).
@@ -233,13 +245,13 @@
         rects.forEach(function (r) {
             const last = lines[lines.length - 1];
             const mid = (r.top + r.bottom) / 2;
-            if (last && mid >= last.top && mid <= last.bottom) {
+            if (last && last.column === columnOf(r) && mid >= last.top && mid <= last.bottom) {
                 last.left = Math.min(last.left, r.left);
                 last.right = Math.max(last.right, r.right);
                 last.top = Math.min(last.top, r.top);
                 last.bottom = Math.max(last.bottom, r.bottom);
             } else {
-                lines.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+                lines.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom, column: columnOf(r) });
             }
         });
 
@@ -1159,6 +1171,7 @@
     // --------------------------------------------------
     const API = {
         applyHorizontalPagination,
+        columnsPerPage,
         scrollToLastHorizontalPage,
         scrollToFirstHorizontalPage,
         getHorizontalPageCount,
