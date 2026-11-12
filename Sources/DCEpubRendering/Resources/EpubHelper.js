@@ -99,7 +99,8 @@
     function callHighlightURL(elm){
         const rectStr = getRectForSelectedText(elm);
         thisHighlight = elm || thisHighlight;
-        const id = thisHighlight ? thisHighlight.id : null;
+        // Every part of a highlight carries its uuid; only the first has it as its id.
+        const id = thisHighlight ? (thisHighlight.getAttribute('data-dc-highlight') || thisHighlight.id) : null;
         if (id && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.highlightTapped) {
             window.webkit.messageHandlers.highlightTapped.postMessage({ uuid: id, rect: rectStr });
         } else {
@@ -129,7 +130,7 @@
     function setHighlightStyle(style){ if (thisHighlight) { thisHighlight.className = style; return thisHighlight.id; } return null; }
     function removeThisHighlight(){ if (thisHighlight) { thisHighlight.outerHTML = thisHighlight.innerHTML; return thisHighlight.id; } return null; }
     function getThisHighlight(){ return thisHighlight ? thisHighlight.id : null; }
-    function removeHighlightById(elmId){ const el = document.getElementById(elmId); if (el){ el.outerHTML = el.innerHTML; return elmId; } return null; }
+    // removeHighlightById is in EpubUtil.js: it removes every part of a highlight.
     function getHighlightContent(){ return thisHighlight ? thisHighlight.textContent : ''; }
     
     // --------------------------
@@ -371,7 +372,7 @@
         // font & theme
         setFontName, nightMode, setFontSize,
         // selection & highlight
-        highlightString, setHighlightStyle, removeThisHighlight, getThisHighlight, removeHighlightById, getHighlightContent,
+        highlightString, setHighlightStyle, removeThisHighlight, getThisHighlight, getHighlightContent,
         // text
         getBodyText, getSelectedText,
         // geometry & url

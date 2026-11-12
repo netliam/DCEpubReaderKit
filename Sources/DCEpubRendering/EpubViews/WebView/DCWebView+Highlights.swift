@@ -16,10 +16,13 @@ extension DCWebView {
         case rectsForSelection
         case getCoordsFromSelection
         case getSelectionString
-        case highlight(cssClass: String)
+        case highlight(cssClass: String, uuid: String)
         case clearSelection
         case highlightCoords(coords: String, cssClass: String, uuid: String, text: String)
         case removeHighlightById(uuid: String)
+        case setStyle(uuid: String, cssClass: String)
+        case setNote(uuid: String, hasNote: Bool)
+        case isHighlightAtPoint(CGPoint)
 
         var rawValue: String {
             switch self {
@@ -29,14 +32,20 @@ extension DCWebView {
                 return "getCoordsFromSelection()"
             case .getSelectionString:
                 return "window.getSelection().toString()"
-            case let .highlight(cssClass):
-                return "highlightString(\(jsLiteral(cssClass)))"
+            case let .highlight(cssClass, uuid):
+                return "highlightSelectionInPlace(\(jsLiteral(cssClass)),\(jsLiteral(uuid)))"
             case .clearSelection:
                 return "window.getSelection().removeAllRanges()"
             case let .highlightCoords(coords, cssClass, uuid, text):
                 return "highlightCoords(\(jsLiteral(coords)),\(jsLiteral(cssClass)),\(jsLiteral(uuid)),\(jsLiteral(text)))"
             case let .removeHighlightById(uuid):
                 return "removeHighlightById(\(jsLiteral(uuid)))"
+            case let .setStyle(uuid, cssClass):
+                return "setHighlightStyleById(\(jsLiteral(uuid)),\(jsLiteral(cssClass)))"
+            case let .setNote(uuid, hasNote):
+                return "setHighlightNoteById(\(jsLiteral(uuid)),\(hasNote))"
+            case let .isHighlightAtPoint(point):
+                return "isHighlightAtPoint(\(Double(point.x)),\(Double(point.y)))"
             }
         }
 
@@ -123,12 +132,15 @@ extension DCWebView {
         }
     }
 
+    /// Draws and saves the selection, which may span paragraphs. `nil` when nothing is selected
+    /// or the selection overlaps an existing highlight.
     @discardableResult
     private func saveSelection(type: DCHighlight.MarkType, style: DCHighlightStyle) async -> DCHighlight? {
+        // Coords first: drawing the highlight splits the text nodes they're taken from.
         guard let coords = await getCoordsFromSelection(),
-              let selectedText = await getSelectedText(),
-              !selectedText.contains("\n"),
-              let uuid = await highlightSelection(cssClass: style.cssClass) else {
+              let selectedText = await getSelectedText()?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !selectedText.isEmpty,
+              let uuid = await highlightSelection(cssClass: style.cssClass, uuid: UUID().uuidString) else {
             return nil
         }
         let highlight = DCHighlight(
@@ -206,17 +218,31 @@ extension DCWebView {
         try? await self.evaluateJavaScriptAsync(JSMethod.getSelectionString.rawValue) as? String
     }
 
-    private func highlightSelection(cssClass: String) async -> String? {
-        try? await self.evaluateJavaScriptAsync(JSMethod.highlight(cssClass: cssClass).rawValue) as? String
+    private func highlightSelection(cssClass: String, uuid: String) async -> String? {
+        try? await self.evaluateJavaScriptAsync(JSMethod.highlight(cssClass: cssClass, uuid: uuid).rawValue) as? String
     }
 
     private func clearJSSelection() async {
         _ = try? await self.evaluateJavaScriptAsync(JSMethod.clearSelection.rawValue)
     }
 
-    // Removes the highlight span from the DOM without touching the store.
+    // Removes every part of the highlight from the DOM without touching the store.
     func removeHighlight(uuid: String) async {
         _ = try? await self.evaluateJavaScriptAsync(JSMethod.removeHighlightById(uuid: uuid).rawValue)
+    }
+
+    /// Redraws a highlight already in the page with its current style and note marker.
+    /// Does nothing if the page doesn't show it.
+    func updateDrawnHighlight(_ highlight: DCHighlight) async {
+        _ = try? await evaluateJavaScriptAsync(JSMethod.setStyle(uuid: highlight.uuid,
+                                                                 cssClass: highlight.displayStyle.cssClass).rawValue)
+        _ = try? await evaluateJavaScriptAsync(JSMethod.setNote(uuid: highlight.uuid, hasNote: highlight.hasNote).rawValue)
+    }
+
+    /// Whether a highlight is drawn at `point`, in this web view's coordinates.
+    func hasHighlight(at point: CGPoint) async -> Bool {
+        let result = try? await evaluateJavaScriptAsync(JSMethod.isHighlightAtPoint(point).rawValue)
+        return result == "true"
     }
 
     // Injects all persisted highlights for the current chapter into the DOM.
@@ -239,6 +265,15 @@ extension DCWebView {
             text: highlight.text
         ).rawValue
         _ = try? await self.evaluateJavaScriptAsync(js)
+        // If it was already drawn, this brings its color and note marker up to date.
+        await updateDrawnHighlight(highlight)
+    }
+}
+
+extension DCHighlight {
+    /// Whether the margin-style note marker is drawn: the note has text.
+    var hasNote: Bool {
+        !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 

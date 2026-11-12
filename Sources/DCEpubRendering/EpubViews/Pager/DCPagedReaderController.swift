@@ -120,7 +120,17 @@ final class DCPagedReaderController: UIViewController {
     /// Taps near the left/right edge turn the page; a tap anywhere else toggles the reader controls.
     /// (The page view controller's own edge taps never fire: the web view takes the touch.)
     @objc private func handleChromeTap(_ recognizer: UITapGestureRecognizer) {
-        let x = recognizer.location(in: view).x / max(view.bounds.width, 1)
+        let point = recognizer.location(in: view)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            // A tap on a highlight opens its menu; it isn't also a page tap.
+            if await DCWebView.hasHighlight(at: point, in: self.view) { return }
+            self.handlePageTap(at: point)
+        }
+    }
+
+    private func handlePageTap(at point: CGPoint) {
+        let x = point.x / max(view.bounds.width, 1)
         if x > 1 - Constants.edgeTapFraction {
             turnPage(forward: true)
         } else if x < Constants.edgeTapFraction {

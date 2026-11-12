@@ -17,6 +17,8 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
     var viewModel: DCWebViewModelProtocol!
     /// Line focus effect, present while the setting is on (see `setLineFocus(enabled:appearance:style:)`).
     private(set) var lineFocus: DCLineFocusController?
+    /// The menu shown when a highlight is tapped (see DCWebView+HighlightMenu.swift).
+    var highlightMenu: DCHighlightMenu?
 
     override init(frame: CGRect, configuration: WKWebViewConfiguration) {
         super.init(frame: frame, configuration: configuration)
@@ -38,7 +40,20 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
         configuration.userContentController.removeScriptMessageHandler(forName: Constants.highlightTapped)
     }
 
-    private func setupBindings() {}
+    private func setupBindings() {
+        // Any page may show a highlight edited elsewhere (the note editor, another page of the chapter).
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(highlightDidChange(_:)),
+                                               name: .dcHighlightDidChange,
+                                               object: nil)
+    }
+
+    @objc private func highlightDidChange(_ notification: Notification) {
+        guard let highlight = notification.userInfo?[DCHighlight.notificationKey] as? DCHighlight else { return }
+        Task { @MainActor [weak self] in
+            await self?.updateDrawnHighlight(highlight)
+        }
+    }
 
     // MARK: - UIGestureRecognizerDelegate
 
@@ -73,49 +88,15 @@ final class DCWebView: WKWebView, WKScriptMessageHandler, UIGestureRecognizerDel
         guard let dict = body as? [String: Any],
               let uuid = dict["uuid"] as? String,
               !uuid.isEmpty else { return }
+        // The rect comes from getBoundingClientRect, in viewport points: this view's coordinates.
+        let rect = (dict["rect"] as? String).map { NSCoder.cgRect(for: $0) } ?? .zero
 
         Task { @MainActor [weak self] in
             guard let self else { return }
             let highlights = await self.viewModel.loadHighlights()
             guard let highlight = highlights.first(where: { $0.uuid == uuid }) else { return }
-
-            if highlight.type == .note {
-                self.showNoteOptionsAlert(highlight: highlight)
-            } else {
-                self.showDeleteHighlightAlert(uuid: uuid)
-            }
+            self.showHighlightMenu(for: highlight, at: rect)
         }
-    }
-
-    private func showNoteOptionsAlert(highlight: DCHighlight) {
-        guard let vc = parentViewController else { return }
-        let alert = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: "Edit Note", style: .default) { [weak self] _ in
-            self?.viewModel.showNoote(highlight: highlight)
-        })
-        alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                await self.viewModel.deleteHighlight(uuid: highlight.uuid)
-                await self.removeHighlight(uuid: highlight.uuid)
-            }
-        })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        vc.present(alert, animated: true)
-    }
-
-    private func showDeleteHighlightAlert(uuid: String) {
-        guard let vc = parentViewController else { return }
-        let alert = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: "Delete Highlight", style: .destructive) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                await self.viewModel.deleteHighlight(uuid: uuid)
-                await self.removeHighlight(uuid: uuid)
-            }
-        })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        vc.present(alert, animated: true)
     }
 
     // MARK: - Edit menu

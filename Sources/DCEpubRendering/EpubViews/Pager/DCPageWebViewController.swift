@@ -206,6 +206,8 @@ final class DCPageWebViewController: UIViewController {
         let config = WKWebViewConfiguration()
         config.allowsAirPlayForMediaPlayback = false
         config.allowsInlineMediaPlayback = true
+        // Like Books: the selection grows by character, across paragraphs, instead of snapping to whole blocks.
+        config.selectionGranularity = .character
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
         config.defaultWebpagePreferences.allowsContentJavaScript = true
 

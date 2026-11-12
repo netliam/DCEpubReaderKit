@@ -190,6 +190,24 @@ html .highlight-underline {
     border-bottom: 2px solid #F02814;
 }
 
+/* A passage with a note ends in a small speech bubble, in the text color (see setHighlightNoteById).
+   It's a pseudo-element, so it adds no text and saved coords stay valid. */
+html [data-dc-note]::after {
+    content: "";
+    display: inline-block;
+    width: 0.7em;
+    height: 0.7em;
+    margin-left: 0.15em;
+    /* Raised without vertical-align, which would make the line taller than its neighbours. */
+    vertical-align: baseline;
+    position: relative;
+    top: -0.45em;
+    background-color: currentColor;
+    opacity: 0.6;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 1h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7.5L4 15v-3H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 1h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7.5L4 15v-3H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
 html .highlight-yellow, html .highlight-green, html .highlight-blue, html .highlight_search, html .highlight-pink, html .highlight-purple, span.epub-media-overlay-playing {
     border-radius: 3px;
     padding: 0 2px;

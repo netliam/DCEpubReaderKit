@@ -35,6 +35,8 @@ struct DCChapterWebView: UIViewRepresentable {
         let config = WKWebViewConfiguration()
         config.allowsAirPlayForMediaPlayback = false
         config.allowsInlineMediaPlayback = true
+        // Like Books: the selection grows by character, across paragraphs, instead of snapping to whole blocks.
+        config.selectionGranularity = .character
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
         // config.preferences.javaScriptEnabled = true
 
@@ -73,7 +75,7 @@ struct DCChapterWebView: UIViewRepresentable {
         context.coordinator.lazyWebView = webView
         context.coordinator.appliedAppearance = viewModel.appearance
         let tap = UITapGestureRecognizer(target: context.coordinator,
-                                         action: #selector(Coordinator.handleChromeTap))
+                                         action: #selector(Coordinator.handleChromeTap(_:)))
         tap.cancelsTouchesInView = false
         tap.delegate = context.coordinator
         webView.addGestureRecognizer(tap)

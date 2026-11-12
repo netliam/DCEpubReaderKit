@@ -736,6 +736,8 @@ extension DCReaderViewModel: DCChapterReaderContextProtocol {
             highlight.chapterTitle = book.chapterTitle(forSpineIndex: highlight.spineIndex) ?? ""
         }
         noteNewMark(highlight)
+        NotificationCenter.default.post(name: .dcHighlightDidChange, object: self,
+                                        userInfo: [DCHighlight.notificationKey: highlight])
         await delegate?.save(highlight: highlight)
     }
 

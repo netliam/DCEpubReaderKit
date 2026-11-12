@@ -97,6 +97,27 @@ extension WebKitBackedTests {
             }
         }
 
+        @Test func tappedHighlightMenuMatchesBooks() {
+            let webView = DCWebView(frame: CGRect(x: 0, y: 0, width: 320, height: 480),
+                                    configuration: WKWebViewConfiguration())
+            var highlight = DCHighlight(uuid: "h", bookId: "b", chapterId: "c", spineIndex: 0,
+                                        type: .highlight, text: "t", coords: "1|0", style: .green)
+            var sections = webView.highlightMenuElements(for: highlight).compactMap { $0 as? UIMenu }
+            #expect(sections.count == 4)
+            // The current color is marked (with a checked swatch, and for VoiceOver).
+            #expect(sections[0].children.map(\.accessibilityLabel) == ["Yellow", "Green, current", "Blue", "Pink", "Purple", "Underline"])
+            #expect(sections.dropFirst().map { $0.children.map(\.title) } == [
+                ["Add Note"],
+                ["Copy", "Share…"],
+                ["Delete Highlight"]
+            ])
+
+            highlight.note = "Thought"
+            sections = webView.highlightMenuElements(for: highlight).compactMap { $0 as? UIMenu }
+            #expect(sections[1].children.map(\.title) == ["Edit Note"])
+            #expect(sections[3].children.map(\.title) == ["Delete Highlight and Note"])
+        }
+
         @Test func lookUpFallsBackWhenTheSystemHasNone() {
             let webView = DCWebView(frame: .zero, configuration: WKWebViewConfiguration())
             let sections = webView.selectionMenuElements(systemLookUp: []).compactMap { $0 as? UIMenu }
@@ -177,19 +198,67 @@ extension WebKitBackedTests {
 
         private func highlight(_ word: String, style: DCHighlightStyle, in webView: WKWebView) async throws -> Saved {
             try await select(word, in: webView)
-            let coords = try #require(try await webView.evaluateJavaScript("getCoordsFromSelection()") as? String)
-            let uuid = try #require(try await webView.evaluateJavaScript("highlightString('\(style.cssClass)')") as? String)
-            _ = try await webView.evaluateJavaScript("window.getSelection().removeAllRanges(); 'ok'")
-            return Saved(uuid: uuid, coords: coords, cssClass: style.cssClass, text: word)
+            return try await highlightSelection(style: style, in: webView)
         }
 
+        /// Highlights the current selection like `DCWebView.saveSelection`: coords, text, then draw.
+        private func highlightSelection(style: DCHighlightStyle, in webView: WKWebView) async throws -> Saved {
+            let coords = try #require(try await webView.evaluateJavaScript("getCoordsFromSelection()") as? String)
+            let text = try #require(try await webView.evaluateJavaScript("window.getSelection().toString()") as? String)
+            let id = UUID().uuidString
+            let uuid = try #require(try await webView.evaluateJavaScript("highlightSelectionInPlace('\(style.cssClass)', '\(id)')") as? String)
+            _ = try await webView.evaluateJavaScript("window.getSelection().removeAllRanges(); 'ok'")
+            return Saved(uuid: uuid, coords: coords, cssClass: style.cssClass,
+                         text: text.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        private func redraw(_ marks: [Saved], in webView: WKWebView) async throws {
+            for saved in marks.sorted(by: { $0.coords > $1.coords }) {
+                let text = saved.text.replacingOccurrences(of: "\n", with: "\\n")
+                let js = "highlightCoords('\(saved.coords)', '\(saved.cssClass)', '\(saved.uuid)', '\(text)')"
+                _ = try await webView.evaluateJavaScript(js)
+            }
+        }
+
+        /// The highlight's class and text across all its parts, as "class:text".
         private func drawn(_ uuid: String, in webView: WKWebView) async throws -> String? {
             try await webView.evaluateJavaScript("""
             (function () {
-                const el = document.getElementById('\(uuid)');
-                return el ? el.className + ':' + el.textContent : null;
+                const parts = Array.from(document.querySelectorAll('[data-dc-highlight="\(uuid)"]'));
+                if (!parts.length) return null;
+                const classes = Array.from(new Set(parts.map(function (p) { return p.className; })));
+                return classes.join('|') + ':' + parts.map(function (p) { return p.textContent; }).join(' ');
             })()
             """) as? String
+        }
+
+        /// Selects from `start` to `end`, which may be in different paragraphs.
+        private func select(from start: String, to end: String, in webView: WKWebView) async throws {
+            _ = try await webView.evaluateJavaScript("""
+            (function () {
+                function find(word, fromEnd) {
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                    let node;
+                    while ((node = walker.nextNode())) {
+                        const at = node.nodeValue.indexOf(word);
+                        if (at >= 0) return [node, fromEnd ? at + word.length : at];
+                    }
+                    return null;
+                }
+                const a = find('\(start)', false), b = find('\(end)', true);
+                const range = document.createRange();
+                range.setStart(a[0], a[1]);
+                range.setEnd(b[0], b[1]);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+                return 'ok';
+            })()
+            """)
+        }
+
+        private func text(of webView: WKWebView) async throws -> String? {
+            try await webView.evaluateJavaScript("document.body.innerHTML") as? String
         }
 
         @Test func colorsAndNotesRedrawWhereTheyWereMade() async throws {
@@ -200,10 +269,7 @@ extension WebKitBackedTests {
 
             // Reopen the chapter and redraw from the saved coords, last first, like `loadHighlights`.
             let reopened = try await loadPage()
-            for saved in [green, note, purple].sorted(by: { $0.coords > $1.coords }) {
-                let js = "highlightCoords('\(saved.coords)', '\(saved.cssClass)', '\(saved.uuid)', '\(saved.text)')"
-                _ = try await reopened.evaluateJavaScript(js)
-            }
+            try await redraw([green, note, purple], in: reopened)
             #expect(try await drawn(green.uuid, in: reopened) == "highlight-green:beta")
             #expect(try await drawn(note.uuid, in: reopened) == "highlight-underline:delta")
             #expect(try await drawn(purple.uuid, in: reopened) == "highlight-purple:Alpha")
@@ -217,14 +283,103 @@ extension WebKitBackedTests {
                 try await highlight("assistive", style: .underline, in: live)
             ]
             let reopened = try await loadPage(body: Self.bookBody)
-            for saved in marks.sorted(by: { $0.coords > $1.coords }) {
-                let js = "highlightCoords('\(saved.coords)', '\(saved.cssClass)', '\(saved.uuid)', '\(saved.text)')"
-                _ = try await reopened.evaluateJavaScript(js)
-            }
+            try await redraw(marks, in: reopened)
             for saved in marks {
                 #expect(try await drawn(saved.uuid, in: reopened) == "\(saved.cssClass):\(saved.text)", "\(saved.text) at \(saved.coords)")
             }
+        }
 
+        @Test func highlightAcrossParagraphsKeepsThemApartAndRedraws() async throws {
+            let live = try await loadPage(body: Self.bookBody)
+            let before = try await live.evaluateJavaScript("document.querySelectorAll('p').length") as? Int
+            try await select(from: "combination.", to: "Each test", in: live)
+            let saved = try await highlightSelection(style: .blue, in: live)
+            #expect(saved.text.contains("\n"))
+            #expect(try await live.evaluateJavaScript("document.querySelectorAll('p').length") as? Int == before)
+            // The text after the selection isn't highlighted.
+            let livePart = try #require(try await drawn(saved.uuid, in: live))
+            #expect(livePart.hasPrefix("highlight-blue:combination."))
+            #expect(livePart.hasSuffix("Each test"))
+
+            // A highlight in a later paragraph, made after the long one, still lands in place.
+            let later = try await highlight("purpose", style: .yellow, in: live)
+
+            let reopened = try await loadPage(body: Self.bookBody)
+            try await redraw([saved, later], in: reopened)
+            #expect(try await drawn(saved.uuid, in: reopened) == livePart)
+            #expect(try await drawn(later.uuid, in: reopened) == "highlight-yellow:purpose")
+        }
+
+        @Test func overlappingSelectionIsRefused() async throws {
+            let webView = try await loadPage()
+            _ = try await highlight("beta", style: .green, in: webView)
+            try await select(from: "Alpha", to: "gamma", in: webView)
+            let result = try await webView.evaluateJavaScript("highlightSelectionInPlace('highlight-yellow', 'x')")
+            #expect(result as? String == nil)
+            #expect(try await drawn("x", in: webView) == nil)
+        }
+
+        @Test func deletingRestoresThePageForLaterCoords() async throws {
+            let webView = try await loadPage(body: Self.bookBody)
+            let original = try await text(of: webView)
+            try await select(from: "different", to: "Each", in: webView)
+            let long = try await highlightSelection(style: .pink, in: webView)
+            _ = try await webView.evaluateJavaScript("removeHighlightById('\(long.uuid)')")
+            #expect(try await drawn(long.uuid, in: webView) == nil)
+            #expect(try await text(of: webView) == original)
+            #expect(try await webView.evaluateJavaScript("""
+            (function () {
+                const p = document.querySelector('p');
+                return Array.from(p.childNodes).filter(function (n) { return n.nodeType === 3; }).length;
+            })()
+            """) as? Int == 1)
+
+            // Coords taken now match a freshly opened chapter.
+            let later = try await highlight("assistive", style: .underline, in: webView)
+            let reopened = try await loadPage(body: Self.bookBody)
+            try await redraw([later], in: reopened)
+            #expect(try await drawn(later.uuid, in: reopened) == "highlight-underline:assistive")
+        }
+
+        @Test func restyleAndNoteMarkerApplyToEveryPart() async throws {
+            let webView = try await loadPage(body: Self.bookBody)
+            try await select(from: "combination.", to: "Each test", in: webView)
+            let saved = try await highlightSelection(style: .yellow, in: webView)
+            _ = try await webView.evaluateJavaScript("setHighlightStyleById('\(saved.uuid)', 'highlight-green')")
+            #expect(try await drawn(saved.uuid, in: webView)?.hasPrefix("highlight-green:") == true)
+
+            let markers = """
+            (function () {
+                const parts = Array.from(document.querySelectorAll('[data-dc-highlight="\(saved.uuid)"]'));
+                return parts.map(function (p) { return p.hasAttribute('data-dc-note') ? '1' : '0'; }).join('');
+            })()
+            """
+            _ = try await webView.evaluateJavaScript("setHighlightNoteById('\(saved.uuid)', true)")
+            let marked = try #require(try await webView.evaluateJavaScript(markers) as? String)
+            #expect(marked.hasSuffix("1") && marked.dropLast().allSatisfy { $0 == "0" })
+            _ = try await webView.evaluateJavaScript("setHighlightNoteById('\(saved.uuid)', false)")
+            #expect(try await webView.evaluateJavaScript(markers) as? String == String(repeating: "0", count: marked.count))
+        }
+
+        @Test func redrawingAHighlightAlreadyShownChangesNothing() async throws {
+            let webView = try await loadPage()
+            let saved = try await highlight("gamma", style: .purple, in: webView)
+            let html = try await text(of: webView)
+            try await redraw([saved], in: webView)
+            #expect(try await text(of: webView) == html)
+        }
+
+        @Test func tapsOnAHighlightAreRecognized() async throws {
+            let webView = try await loadPage()
+            let saved = try await highlight("gamma", style: .purple, in: webView)
+            let point = try #require(try await webView.evaluateJavaScript("""
+            (function () {
+                const r = document.getElementById('\(saved.uuid)').getBoundingClientRect();
+                return [r.left + r.width / 2, r.top + r.height / 2];
+            })()
+            """) as? [Double])
+            #expect(try await webView.evaluateJavaScript("isHighlightAtPoint(\(point[0]), \(point[1]))") as? String == "true")
+            #expect(try await webView.evaluateJavaScript("isHighlightAtPoint(\(point[0]), 400)") as? String == "false")
         }
     }
 }

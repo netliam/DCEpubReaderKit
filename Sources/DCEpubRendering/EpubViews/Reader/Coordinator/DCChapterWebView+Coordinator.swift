@@ -361,9 +361,15 @@ extension DCChapterWebView.Coordinator: UIScrollViewDelegate {
 // MARK: - Reader controls
 
 extension DCChapterWebView.Coordinator: UIGestureRecognizerDelegate {
-    /// A tap on the page shows or hides the reader controls.
-    @objc func handleChromeTap() {
-        onAction(.toggleChrome)
+    /// A tap on the page shows or hides the reader controls, unless it's on a highlight (which
+    /// opens the highlight's menu instead).
+    @objc func handleChromeTap(_ recognizer: UITapGestureRecognizer) {
+        guard let view = recognizer.view else { return }
+        let point = recognizer.location(in: view)
+        Task { @MainActor [weak self] in
+            if await DCWebView.hasHighlight(at: point, in: view) { return }
+            self?.onAction(.toggleChrome)
+        }
     }
 
     // Don't block scrolling, text selection, highlight taps or line focus.

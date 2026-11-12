@@ -552,6 +552,14 @@
     }
     
     function getCoordsFromSelection() {
+        // Prefer the selection's text positions: when a selection crosses paragraphs WebKit can put
+        // its ends on elements, and coords count characters inside text nodes.
+        const range = normalizedSelectionRange();
+        if (range) {
+            try {
+                return getCoordFromNode(range.startContainer, range.startOffset) + ',' + getCoordFromNode(range.endContainer, range.endOffset);
+            } catch (err) { return String(err); }
+        }
         const sel = window.getSelection();
         let anchorCoord = 0, focusCoord = 0;
         try {
@@ -571,9 +579,15 @@
     
     function highlightCoords(mark, mark_type, guid, text) {
         try {
+            // Already drawn (pages of a chapter redraw each other's saves): keep it where it is.
+            if (guid && highlightParts(guid).length) return 'drawn';
             const [iniCoords, endCoords] = mark.split(',');
             const iniOffset = iniCoords.split('>').pop();
             const endOffset = endCoords.split('>').pop();
+            // A highlight across paragraphs starts in its first line and ends in its last one.
+            const lines = String(text || '').split(/[\r\n]+/).map(function (l) { return l.trim(); }).filter(Boolean);
+            const iniText = lines.length ? lines[0] : String(text || '');
+            const endText = lines.length ? lines[lines.length - 1] : String(text || '');
             
             let tempIniNode = getNodeFromCoord(iniCoords, document);
             let iniNode = getNodeFromCoord(iniCoords, document);
@@ -581,7 +595,7 @@
             
             const coordsIniNode = getCoordFromNode(iniNode, 0);
             const coordsIniFixNode = getCoordFromNode(iniFixNode, 0);
-            if (iniFixNode && (!iniNode || !getNodeText(iniNode).includes(text) || coordsIniNode > coordsIniFixNode)) iniNode = iniFixNode;
+            if (iniFixNode && (!iniNode || !getNodeText(iniNode).includes(iniText) || coordsIniNode > coordsIniFixNode)) iniNode = iniFixNode;
             
             let tempEndNode = getNodeFromCoord(endCoords, document);
             let endNode = getNodeFromCoord(endCoords, document);
@@ -589,10 +603,10 @@
             
             const coordsEndNode = getCoordFromNode(endNode, 0);
             const coordsEndFixNode = getCoordFromNode(endFixNode, 0);
-            if (endFixNode && (!endNode || !getNodeText(endNode).includes(text) || coordsEndNode > coordsEndFixNode)) endNode = endFixNode;
+            if (endFixNode && (!endNode || !getNodeText(endNode).includes(endText) || coordsEndNode > coordsEndFixNode)) endNode = endFixNode;
             
-            if (!iniNode){ while (tempIniNode && !getNodeText(tempIniNode).includes(text)) tempIniNode = tempIniNode.nextSibling; }
-            if (!endNode){ while (tempEndNode && !getNodeText(tempEndNode).includes(text)) tempEndNode = tempEndNode.nextSibling; }
+            if (!iniNode){ while (tempIniNode && !getNodeText(tempIniNode).includes(iniText)) tempIniNode = tempIniNode.nextSibling; }
+            if (!endNode){ while (tempEndNode && !getNodeText(tempEndNode).includes(endText)) tempEndNode = tempEndNode.nextSibling; }
             
             iniNode = iniNode || tempIniNode;
             endNode = endNode || tempEndNode;
@@ -728,33 +742,161 @@
     
     function displayRange(doc, anchorNode, anchorOffset, focusNode, focusOffset, id, cl, coords, guid) {
         if (!checkIfValid(anchorNode, anchorOffset, focusNode, focusOffset)) return false;
-        if (anchorNode === focusNode) { displaySelectionText(anchorNode, anchorOffset, focusNode, focusOffset, cl, coords, guid); return true; }
-        const nodes = getElementsBetweenTree(anchorNode, focusNode) || [];
+        const range = document.createRange();
         try {
-            displaySelectionText(anchorNode, anchorOffset, anchorNode, (anchorNode.nodeValue || '').length, cl, coords, guid);
-            displaySelectionText(focusNode, 0, focusNode, focusOffset, cl, coords, guid);
-        } catch (_) {}
-        for (let i = 0; i < nodes.length; i++) {
-            const el = nodes[i];
-            if (el === anchorNode || el === focusNode) continue;
-            // skip if ancestor of endpoints
-            let cur = anchorNode; let skip = false; while (cur){ if (cur === el) { skip = true; break; } cur = cur.parentNode; }
-            cur = focusNode; while (!skip && cur){ if (cur === el) { skip = true; break; } cur = cur.parentNode; }
-            if (skip) continue;
-            const cls = isHighlightClassName(cl) ? cl : 'highlight_search';
-            if (el.nodeType === 3) {
-                const span = document.createElement('span'); span.className = cls; el.parentNode.insertBefore(span, el); span.appendChild(el);
-            } else {
-                const span = document.createElement('span'); span.className = cls; while (el.firstChild) span.appendChild(el.firstChild); el.appendChild(span);
+            range.setStart(anchorNode, anchorOffset);
+            range.setEnd(focusNode, focusOffset);
+        } catch (_) { return false; }
+        return wrapRange(range, isHighlightClassName(cl) ? cl : 'highlight_search', guid);
+    }
+    
+    // --------------------------------------------------
+    // Highlights as tagged spans
+    // --------------------------------------------------
+    // A highlight is one span per text node it covers, each tagged with its uuid (the first also has
+    // it as its id). Wrapping text nodes, never elements, keeps paragraphs intact, so a highlight can
+    // cross them, and coords stay valid because highlight spans are skipped when counting.
+    const HIGHLIGHT_ATTR = 'data-dc-highlight';
+    const NOTE_ATTR = 'data-dc-note';
+    
+    function highlightParts(uuid) {
+        const parts = Array.from(document.querySelectorAll('[' + HIGHLIGHT_ATTR + '="' + CSS.escape(uuid) + '"]'));
+        const byId = document.getElementById(uuid);
+        if (byId && parts.indexOf(byId) < 0) parts.unshift(byId);
+        return parts;
+    }
+    
+    // Whitespace between block elements (source indentation), which isn't text the reader sees.
+    function isFormattingWhitespace(node) {
+        const value = node.nodeValue || '';
+        return /^\s*$/.test(value) && /[\r\n]/.test(value);
+    }
+    
+    function isInsideUserHighlight(node) {
+        for (let el = node.parentNode; el && el.nodeType === 1; el = el.parentNode) {
+            if (isHighlightElement(el) && el.className !== 'highlight_search') return true;
+        }
+        return false;
+    }
+    
+    function textNodesInRange(range) {
+        const root = range.commonAncestorContainer;
+        if (root.nodeType === 3) return [root];
+        const nodes = [];
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode: function (n) { return range.intersectsNode(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+        });
+        let n;
+        while ((n = walker.nextNode())) nodes.push(n);
+        return nodes;
+    }
+    
+    // Wraps the text in `range`. Refuses ranges that overlap another highlight: nested highlights
+    // would break coords, which only skip one level of highlight.
+    function wrapRange(range, cls, uuid) {
+        const nodes = textNodesInRange(range);
+        if (nodes.some(isInsideUserHighlight)) return false;
+        const pieces = [];
+        nodes.forEach(function (node) {
+            const start = node === range.startContainer ? range.startOffset : 0;
+            const end = node === range.endContainer ? range.endOffset : node.nodeValue.length;
+            if (end <= start || isFormattingWhitespace(node)) return;
+            let piece = node;
+            if (end < piece.nodeValue.length) piece.splitText(end);
+            if (start > 0) piece = piece.splitText(start);
+            pieces.push(piece);
+        });
+        pieces.forEach(function (piece, index) {
+            const span = document.createElement('span');
+            span.className = cls;
+            if (uuid) {
+                span.setAttribute(HIGHLIGHT_ATTR, uuid);
+                if (index === 0) span.id = uuid;
             }
-            const nodeClickable = getNodeFromCoord(coords, document);
-            if (nodeClickable) {
-                nodeClickable.removeEventListener('click', nodeClickable.__epub_click, false);
-                nodeClickable.__epub_click = function(){ window.location = 'digitalbooks://clicks/' + cl + '/' + coords; };
-                nodeClickable.addEventListener('click', nodeClickable.__epub_click, false);
+            span.setAttribute('onclick', 'callHighlightURL(this);');
+            piece.parentNode.insertBefore(span, piece);
+            span.appendChild(piece);
+        });
+        return pieces.length > 0;
+    }
+    
+    // The text position for a range boundary: element boundaries move to the first text after
+    // (a start) or the last text before (an end).
+    function textBoundary(container, offset, isEnd) {
+        if (container.nodeType === 3) return [container, offset];
+        const point = document.createRange();
+        try { point.setStart(container, offset); } catch (_) { return null; }
+        point.collapse(true);
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        let n, found = null;
+        while ((n = walker.nextNode())) {
+            if (isFormattingWhitespace(n) || !n.nodeValue.length) continue;
+            if (isEnd) {
+                if (point.comparePoint(n, n.nodeValue.length) <= 0) found = [n, n.nodeValue.length];
+                else break;
+            } else if (point.comparePoint(n, 0) >= 0) {
+                found = [n, 0];
+                break;
             }
         }
-        return true;
+        return found;
+    }
+    
+    // The selection with both ends in text nodes, or null when nothing is selected.
+    function normalizedSelectionRange() {
+        const sel = window.getSelection && window.getSelection();
+        if (!sel || !sel.rangeCount || sel.isCollapsed) return null;
+        const range = sel.getRangeAt(0).cloneRange();
+        const start = textBoundary(range.startContainer, range.startOffset, false);
+        const end = textBoundary(range.endContainer, range.endOffset, true);
+        if (!start || !end) return null;
+        try {
+            range.setStart(start[0], start[1]);
+            range.setEnd(end[0], end[1]);
+        } catch (_) { return null; }
+        return range.collapsed ? null : range;
+    }
+    
+    // Highlights the selection with `cls` as `uuid`. Returns the uuid, or null if it couldn't.
+    function highlightSelectionInPlace(cls, uuid) {
+        const range = normalizedSelectionRange();
+        if (!range) return null;
+        return wrapRange(range, cls, uuid) ? uuid : null;
+    }
+    
+    function setHighlightStyleById(uuid, cls) {
+        const parts = highlightParts(uuid);
+        parts.forEach(function (el) { el.className = cls; });
+        return parts.length ? uuid : null;
+    }
+    
+    // Marks a highlight as having a note: Style.css draws a note icon after its last part.
+    function setHighlightNoteById(uuid, hasNote) {
+        const parts = highlightParts(uuid);
+        parts.forEach(function (el, index) {
+            if (hasNote && index === parts.length - 1) el.setAttribute(NOTE_ATTR, '');
+            else el.removeAttribute(NOTE_ATTR);
+        });
+        return parts.length ? uuid : null;
+    }
+    
+    function removeHighlightById(uuid) {
+        const parts = highlightParts(uuid);
+        parts.forEach(function (el) {
+            const parent = el.parentNode;
+            if (!parent) return;
+            while (el.firstChild) parent.insertBefore(el.firstChild, el);
+            parent.removeChild(el);
+            // Merge the text back into one node, as a freshly loaded chapter has it, so coords match.
+            parent.normalize();
+        });
+        return parts.length ? uuid : null;
+    }
+    
+    // Whether a highlight is drawn at the viewport point, so a tap there isn't also a page tap.
+    function isHighlightAtPoint(x, y) {
+        const el = document.elementFromPoint(x, y);
+        return (el && el.closest && el.closest('[' + HIGHLIGHT_ATTR + ']')) ? 'true' : 'false';
     }
     
     function checkIfValid(anchorNode, anchorOffset, focusNode, focusOffset) {
@@ -950,7 +1092,14 @@
         getPageForNodeID,
         scrollToFirstPage,
         rectsForSelection,
-        clearTextSelection
+        clearTextSelection,
+        normalizedSelectionRange,
+        wrapRange,
+        highlightSelectionInPlace,
+        setHighlightStyleById,
+        setHighlightNoteById,
+        removeHighlightById,
+        isHighlightAtPoint
     };
     
     window.EpubUtil = window.EpubUtil || {};
