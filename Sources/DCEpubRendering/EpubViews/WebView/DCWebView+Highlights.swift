@@ -119,15 +119,17 @@ extension DCWebView {
 
     /// Highlights the selection with `style` and saves it.
     func highlightSelection(style: DCHighlightStyle) {
+        DCHighlightStyle.lastUsed = style
         Task { @MainActor [weak self] in
             await self?.saveSelection(type: .highlight, style: style)
         }
     }
 
-    /// Underlines the selection, saves it as a note and opens the note editor.
+    /// Highlights the selection in the last color used, like Books, saves it as a note and opens
+    /// the note editor.
     func addNoteToSelection() {
         Task { @MainActor [weak self] in
-            guard let self, let highlight = await self.saveSelection(type: .note, style: .underline) else { return }
+            guard let self, let highlight = await self.saveSelection(type: .note, style: DCHighlightStyle.lastUsed) else { return }
             self.viewModel.showNoote(highlight: highlight)
         }
     }
@@ -281,6 +283,15 @@ extension DCHighlight {
 // MARK: - Highlight styles
 
 extension DCHighlightStyle {
+    nonisolated(unsafe) static var store: UserDefaults = .standard
+    private static let lastUsedKey = "DCLastHighlightStyle"
+
+    /// The color last chosen for a highlight (yellow at first). Add Note uses it, as Books does.
+    static var lastUsed: DCHighlightStyle {
+        get { store.string(forKey: lastUsedKey).flatMap(DCHighlightStyle.init(rawValue:)) ?? .yellow }
+        set { store.set(newValue.rawValue, forKey: lastUsedKey) }
+    }
+
     /// Class in Style.css that draws the style.
     var cssClass: String { "highlight-\(rawValue)" }
 

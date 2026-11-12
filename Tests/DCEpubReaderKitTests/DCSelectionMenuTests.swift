@@ -383,3 +383,31 @@ extension WebKitBackedTests {
         }
     }
 }
+
+/// Add Note highlights in the last color used, like Books, instead of always underlining.
+@Suite("Note colors", .serialized)
+struct DCNoteColorTests {
+
+    @Test @MainActor func lastUsedColorIsRememberedAndStartsYellow() throws {
+        let defaults = try #require(UserDefaults(suiteName: "DCNoteColorTests-\(UUID().uuidString)"))
+        let previous = DCHighlightStyle.store
+        DCHighlightStyle.store = defaults
+        defer { DCHighlightStyle.store = previous }
+
+        #expect(DCHighlightStyle.lastUsed == .yellow)
+        DCHighlightStyle.lastUsed = .purple
+        #expect(DCHighlightStyle.lastUsed == .purple)
+        DCHighlightStyle.lastUsed = .underline
+        #expect(DCHighlightStyle.lastUsed == .underline)
+    }
+
+    @Test func notesSavedAsUnderlinesKeepThem() {
+        // Notes made before this change were stored with the underline style.
+        let old = DCHighlight(uuid: "n", bookId: "b", chapterId: "c", spineIndex: 0, type: .note,
+                              text: "t", coords: "1|0", style: .underline)
+        #expect(old.displayStyle == .underline)
+        let colored = DCHighlight(uuid: "m", bookId: "b", chapterId: "c", spineIndex: 0, type: .note,
+                                  text: "t", coords: "1|0", style: .green)
+        #expect(colored.displayStyle == .green)
+    }
+}
