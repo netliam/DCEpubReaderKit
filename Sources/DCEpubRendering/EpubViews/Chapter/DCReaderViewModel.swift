@@ -60,6 +60,8 @@ final class DCReaderViewModel: ObservableObject {
 
     var chapterViewModels: [Int: DCChapterWebViewModel] = [:]
     private var pendingJumpsBySpineIndex: [Int: DCChapterJump] = [:]
+    /// Set when a jump changes the chapter, so `handleSelectionDidChange` leaves its position alone.
+    private var selectionChangeIsJump = false
     /// Paged (horizontal) reader, set when it is created.
     weak var pagedNavigator: DCPagedReaderNavigating?
     /// Created lazily so books that are never searched don't pay for text extraction. Kept for the
@@ -589,6 +591,10 @@ final class DCReaderViewModel: ObservableObject {
         }
         // The paged reader drives `currentSelection` itself and positions its own pages.
         guard !isPagedMode else { return }
+        // A jump positions the chapter itself; only scrolling into the previous chapter should
+        // land on its last page.
+        let isJump = selectionChangeIsJump
+        selectionChangeIsJump = false
 
         // Only consume the pending coord when the chapter viewModel is already available.
         // If the chapter has not yet registered its viewModel (first-time load), the coord
@@ -600,6 +606,7 @@ final class DCReaderViewModel: ObservableObject {
             chapterViewModel.jump(to: jump)
             return
         }
+        guard !isJump else { return }
 
         chapterViewModels[currentSelection]?.updateCurrentPage(
             target: currentSelection < previousSelection ? currentSelection : nil
@@ -803,6 +810,9 @@ final class DCReaderViewModel: ObservableObject {
     /// TabView keeps loaded), else once it loads (see `consumeInitialJump`).
     @MainActor
     private func navigate(to jump: DCChapterJump, in spineIndex: Int) {
+        if spineIndex != currentSelection {
+            selectionChangeIsJump = true
+        }
         if let chapter = chapterViewModels[spineIndex], spineIndex == currentSelection || chapter.isLaidOut {
             pendingJumpsBySpineIndex[spineIndex] = nil
             chapter.jump(to: jump)
@@ -827,10 +837,8 @@ final class DCReaderViewModel: ObservableObject {
         rememberPositionBeforeJump()
         if isPagedMode {
             pagedNavigator?.show(spineIndex: spineIndex, fragment: fragment)
-        } else if let fragment {
-            navigate(to: .fragment(fragment), in: spineIndex)
         } else {
-            currentSelection = spineIndex
+            navigate(to: fragment.map { .fragment($0) } ?? .page(0), in: spineIndex)
         }
     }
 
@@ -842,10 +850,9 @@ final class DCReaderViewModel: ObservableObject {
         rememberPositionBeforeJump()
         if isPagedMode {
             pagedNavigator?.show(spineIndex: spineIndex, fragment: entry.fragment)
-        } else if let fragment = entry.fragment {
-            navigate(to: .fragment(fragment), in: spineIndex)
         } else {
-            currentSelection = spineIndex
+            // The start of the chapter, even when it's an earlier one.
+            navigate(to: entry.fragment.map { .fragment($0) } ?? .page(0), in: spineIndex)
         }
     }
 

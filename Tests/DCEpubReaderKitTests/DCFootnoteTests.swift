@@ -82,6 +82,8 @@ extension WebKitBackedTests {
            <a id="r5" href="#later">later</a>,
            <a id="r6" href="c1.xhtml#fn1">self</a>,
            <a id="r7" href="https://example.com/">web</a>.</p>
+        <p><img id="pic" src="../images/fig1.png" alt="A figure"/>
+           <a id="r8" href="#later"><img id="linked" src="../images/fig2.png" alt=""/></a></p>
         <p id="later">Later.</p>
         <aside epub:type="footnote" id="fn1"><p>A footnote. <a epub:type="backlink" href="#r1">↩</a></p></aside>
         <aside role="doc-footnote" id="fn2"><p>One.</p><p>Two.</p></aside>
@@ -123,6 +125,19 @@ extension WebKitBackedTests {
             // The chapter's own file name is the same chapter.
             #expect(try await action("r6", in: webView)["kind"] == "footnote")
             #expect(try await action("r7", in: webView) == ["kind": "link", "text": "", "url": "https://example.com/"])
+        }
+
+        @Test func picturesOpenFullScreenUnlessTheyAreLinks() async throws {
+            let webView = try await load()
+            let raw = try #require(try await webView.evaluateJavaScript("""
+            JSON.stringify(imageAction(document.getElementById('pic')))
+            """) as? String)
+            let image = try #require(try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any])
+            #expect(image["kind"] as? String == "image")
+            #expect(image["url"] as? String == "file:///book/OEBPS/images/fig1.png")
+            #expect(image["alt"] as? String == "A figure")
+            // A picture inside a link follows the link (the click listener checks links first).
+            #expect(try await action("r8", in: webView)["kind"] == "link")
         }
 
         @Test func headingSplitAcrossPagesOpensOnItsFirstPage() async throws {

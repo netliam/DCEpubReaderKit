@@ -29,12 +29,22 @@ extension DCWebView {
                 // Not a note after all, or unreadable: go there instead.
                 viewModel.openLink(url)
             }
+        case "image":
+            guard let url = (dict["url"] as? String).flatMap(URL.init(string:)), url.isFileURL,
+                  let image = UIImage(contentsOfFile: url.path) else { return }
+            showImage(image, description: dict["alt"] as? String ?? "")
         case "link":
             guard let url = (dict["url"] as? String).flatMap(URL.init(string:)) else { return }
             viewModel.openLink(url)
         default:
             break
         }
+    }
+
+    /// Opens a picture from the book full screen, to zoom into.
+    func showImage(_ image: UIImage, description: String) {
+        guard let presenter = parentViewController else { return }
+        presenter.present(DCImageViewerController(image: image, description: description), animated: true)
     }
 
     /// Shows a note in a popover pointing at its reference, like Books.

@@ -906,7 +906,7 @@
     function isTappableAtPoint(x, y) {
         const el = document.elementFromPoint(x, y);
         if (!el || !el.closest) return 'false';
-        return el.closest('[' + HIGHLIGHT_ATTR + '], a[href]') ? 'true' : 'false';
+        return el.closest('[' + HIGHLIGHT_ATTR + '], a[href], img, image') ? 'true' : 'false';
     }
     
     // --------------------------------------------------
@@ -977,12 +977,30 @@
         return { kind: 'link', url: url.href };
     }
     
+    // A tapped picture (not inside a link): { kind: 'image', url, alt, rect }, opened full screen.
+    function imageAction(target) {
+        if (!target || !target.closest) return null;
+        const img = target.closest('img, image');
+        if (!img) return null;
+        let src = '';
+        if (img.tagName.toLowerCase() === 'img') {
+            src = img.currentSrc || img.src;
+        } else {
+            src = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
+        }
+        if (!src) return null;
+        let url;
+        try { url = new URL(src, window.dcChapterURL || document.baseURI); } catch (_) { return null; }
+        const svg = img.closest('svg');
+        const alt = img.getAttribute('alt') || img.getAttribute('aria-label') || (svg && svg.getAttribute('aria-label')) || '';
+        return { kind: 'image', url: url.href, alt: alt, rect: rectString(img) };
+    }
+
     function installLinkBridge() {
         if (window.__dc_link_listener) return;
         window.__dc_link_listener = function (event) {
             const a = event.target && event.target.closest ? event.target.closest('a[href]') : null;
-            if (!a) return;
-            const action = linkAction(a);
+            const action = a ? linkAction(a) : imageAction(event.target);
             const handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.linkTapped;
             if (!action || !handler) return;
             event.preventDefault();
@@ -1197,6 +1215,7 @@
         isHighlightAtPoint,
         isTappableAtPoint,
         linkAction,
+        imageAction,
         noteText
     };
     
