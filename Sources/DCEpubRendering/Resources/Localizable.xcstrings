@@ -1,0 +1,354 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%@ (Dark)": {
+      "extractionState": "manual"
+    },
+    "%lld of %lld": {
+      "extractionState": "manual"
+    },
+    "%lld pages left in chapter": {
+      "extractionState": "manual"
+    },
+    "(p. %lld)": {
+      "extractionState": "manual"
+    },
+    "1 page left in chapter": {
+      "extractionState": "manual"
+    },
+    "A": {
+      "extractionState": "manual"
+    },
+    "Aa": {
+      "extractionState": "manual"
+    },
+    "Add Bookmark": {
+      "extractionState": "manual"
+    },
+    "Add Note": {
+      "extractionState": "manual"
+    },
+    "Add a note": {
+      "extractionState": "manual"
+    },
+    "All": {
+      "extractionState": "manual"
+    },
+    "Allow Multiple Columns": {
+      "extractionState": "manual"
+    },
+    "Back to %@": {
+      "extractionState": "manual"
+    },
+    "Back to Page %lld": {
+      "extractionState": "manual"
+    },
+    "Background": {
+      "extractionState": "manual"
+    },
+    "Blue": {
+      "extractionState": "manual"
+    },
+    "Blur": {
+      "extractionState": "manual"
+    },
+    "Bold": {
+      "extractionState": "manual"
+    },
+    "Bookmarks": {
+      "extractionState": "manual"
+    },
+    "Brightness": {
+      "extractionState": "manual"
+    },
+    "Calm": {
+      "extractionState": "manual"
+    },
+    "Changes the %@ theme.": {
+      "extractionState": "manual"
+    },
+    "Chapter %lld": {
+      "extractionState": "manual"
+    },
+    "Chapter %lld of %lld": {
+      "extractionState": "manual"
+    },
+    "Character Spacing": {
+      "extractionState": "manual"
+    },
+    "Close": {
+      "extractionState": "manual"
+    },
+    "Contents": {
+      "extractionState": "manual"
+    },
+    "Copy": {
+      "extractionState": "manual"
+    },
+    "Curl": {
+      "extractionState": "manual"
+    },
+    "Current chapter": {
+      "extractionState": "manual"
+    },
+    "Customize": {
+      "extractionState": "manual"
+    },
+    "Date": {
+      "extractionState": "manual"
+    },
+    "Decrease text size": {
+      "extractionState": "manual"
+    },
+    "Default": {
+      "extractionState": "manual"
+    },
+    "Delete Highlight": {
+      "extractionState": "manual"
+    },
+    "Delete Highlight and Note": {
+      "extractionState": "manual"
+    },
+    "Done": {
+      "extractionState": "manual"
+    },
+    "Edit Note": {
+      "extractionState": "manual"
+    },
+    "Focus": {
+      "extractionState": "manual"
+    },
+    "Font": {
+      "extractionState": "manual"
+    },
+    "Footnote": {
+      "extractionState": "manual"
+    },
+    "Green": {
+      "extractionState": "manual"
+    },
+    "Guide": {
+      "extractionState": "manual"
+    },
+    "Highlights": {
+      "extractionState": "manual"
+    },
+    "Horizontal": {
+      "extractionState": "manual"
+    },
+    "Image": {
+      "extractionState": "manual"
+    },
+    "Increase text size": {
+      "extractionState": "manual"
+    },
+    "Justify Text": {
+      "extractionState": "manual"
+    },
+    "Keeps the line you're reading prominent by dimming or blurring the rest. Tap a line to focus it; tap it again to move to the next.": {
+      "extractionState": "manual"
+    },
+    "Last page in chapter": {
+      "extractionState": "manual"
+    },
+    "Layout": {
+      "extractionState": "manual"
+    },
+    "Line Guide": {
+      "extractionState": "manual"
+    },
+    "Line Guide: Off": {
+      "extractionState": "manual"
+    },
+    "Line Guide: On": {
+      "extractionState": "manual"
+    },
+    "Line Spacing": {
+      "extractionState": "manual"
+    },
+    "Lock Rotation": {
+      "extractionState": "manual"
+    },
+    "Look Up": {
+      "extractionState": "manual"
+    },
+    "Loose": {
+      "extractionState": "manual"
+    },
+    "Margins": {
+      "extractionState": "manual"
+    },
+    "Match system dark mode": {
+      "extractionState": "manual"
+    },
+    "Narrow": {
+      "extractionState": "manual"
+    },
+    "No marks": {
+      "extractionState": "manual"
+    },
+    "No matches": {
+      "extractionState": "manual"
+    },
+    "No results for “%@”.": {
+      "extractionState": "manual"
+    },
+    "Normal": {
+      "extractionState": "manual"
+    },
+    "Note": {
+      "extractionState": "manual"
+    },
+    "Note: %@": {
+      "extractionState": "manual"
+    },
+    "Notes": {
+      "extractionState": "manual"
+    },
+    "Nothing in this book matches this filter.": {
+      "extractionState": "manual"
+    },
+    "Off": {
+      "extractionState": "manual"
+    },
+    "On": {
+      "extractionState": "manual"
+    },
+    "Original": {
+      "extractionState": "manual"
+    },
+    "Page": {
+      "extractionState": "manual"
+    },
+    "Page %lld": {
+      "extractionState": "manual"
+    },
+    "Page %lld of %lld": {
+      "extractionState": "manual"
+    },
+    "Page Turn": {
+      "extractionState": "manual"
+    },
+    "Pages": {
+      "extractionState": "manual"
+    },
+    "Paper": {
+      "extractionState": "manual"
+    },
+    "Pink": {
+      "extractionState": "manual"
+    },
+    "Progress": {
+      "extractionState": "manual"
+    },
+    "Purple": {
+      "extractionState": "manual"
+    },
+    "Quiet": {
+      "extractionState": "manual"
+    },
+    "Quote: %@": {
+      "extractionState": "manual"
+    },
+    "Reader Menu": {
+      "extractionState": "manual"
+    },
+    "Relaxed": {
+      "extractionState": "manual"
+    },
+    "Remove Bookmark": {
+      "extractionState": "manual"
+    },
+    "Reset to Theme Colors": {
+      "extractionState": "manual"
+    },
+    "Rotation Lock": {
+      "extractionState": "manual"
+    },
+    "Scrolling": {
+      "extractionState": "manual"
+    },
+    "Search": {
+      "extractionState": "manual"
+    },
+    "Search Book": {
+      "extractionState": "manual"
+    },
+    "Search in book": {
+      "extractionState": "manual"
+    },
+    "Section %lld": {
+      "extractionState": "manual"
+    },
+    "Share Highlights and Notes": {
+      "extractionState": "manual"
+    },
+    "Share…": {
+      "extractionState": "manual"
+    },
+    "Show": {
+      "extractionState": "manual"
+    },
+    "Showing the first %lld results. Refine your search to see more.": {
+      "extractionState": "manual"
+    },
+    "Slide": {
+      "extractionState": "manual"
+    },
+    "Sort By": {
+      "extractionState": "manual"
+    },
+    "Style": {
+      "extractionState": "manual"
+    },
+    "Swipe up or down to move by chapter.": {
+      "extractionState": "manual"
+    },
+    "Switches between turning pages and scrolling": {
+      "extractionState": "manual"
+    },
+    "Text": {
+      "extractionState": "manual"
+    },
+    "Theme Colors": {
+      "extractionState": "manual"
+    },
+    "Themes & Settings": {
+      "extractionState": "manual"
+    },
+    "This book does not have bookmarks yet.": {
+      "extractionState": "manual"
+    },
+    "This book does not have highlights yet.": {
+      "extractionState": "manual"
+    },
+    "This book does not have notes yet.": {
+      "extractionState": "manual"
+    },
+    "This book has no table of contents.": {
+      "extractionState": "manual"
+    },
+    "Tight": {
+      "extractionState": "manual"
+    },
+    "Unable to open section %lld.": {
+      "extractionState": "manual"
+    },
+    "Underline": {
+      "extractionState": "manual"
+    },
+    "Vertical": {
+      "extractionState": "manual"
+    },
+    "Wide": {
+      "extractionState": "manual"
+    },
+    "Word Spacing": {
+      "extractionState": "manual"
+    },
+    "Yellow": {
+      "extractionState": "manual"
+    }
+  },
+  "version": "1.0"
+}

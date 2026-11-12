@@ -34,7 +34,7 @@ struct DCSearchView: View {
                                     Text("\(page)")
                                         .font(.subheadline.monospacedDigit())
                                         .foregroundStyle(.secondary)
-                                        .accessibilityLabel("Page \(page)")
+                                        .accessibilityLabel(String(format: L("Page %lld"), page))
                                 }
                             }
                             .contentShape(Rectangle())
@@ -44,7 +44,7 @@ struct DCSearchView: View {
                 }
             }
             if viewModel.hasReachedLimit {
-                Text("Showing the first \(viewModel.resultLimit) results. Refine your search to see more.")
+                Text(String(format: L("Showing the first %lld results. Refine your search to see more."), viewModel.resultLimit))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -54,18 +54,18 @@ struct DCSearchView: View {
             if viewModel.isSearching && viewModel.sections.isEmpty {
                 ProgressView()
             } else if viewModel.showsNoResults {
-                Text("No results for “\(viewModel.searchedQuery)”.")
+                Text(String(format: L("No results for “%@”."), viewModel.searchedQuery))
                     .foregroundStyle(.secondary)
                     .padding()
             }
         }
         .searchable(text: $viewModel.query,
                     placement: .navigationBarDrawer(displayMode: .always),
-                    prompt: "Search in book")
+                    prompt: L("Search in book"))
         .onChange(of: viewModel.query) { _ in
             viewModel.queryDidChange()
         }
-        .navigationTitle("Search")
+        .navigationTitle(L("Search"))
         .navigationBarTitleDisplayMode(.inline)
     }
 

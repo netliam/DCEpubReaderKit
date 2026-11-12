@@ -59,7 +59,7 @@ struct DCMarksView: View {
                 Spacer(minLength: 0)
             }
             Menu {
-                Picker("Sort By", selection: $viewModel.sort) {
+                Picker(L("Sort By"), selection: $viewModel.sort) {
                     ForEach(DCMarksViewModel.Sort.allCases, id: \.self) { sort in
                         Text(sort.title).tag(sort)
                     }
@@ -70,7 +70,7 @@ struct DCMarksView: View {
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
             }
-            .accessibilityLabel("Sort By")
+            .accessibilityLabel(L("Sort By"))
             .accessibilityValue(viewModel.sort.title)
 
             if viewModel.canExport {
@@ -84,7 +84,7 @@ struct DCMarksView: View {
                 }
                 // In a List row, buttons without their own style don't get their taps.
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Share Highlights and Notes")
+                .accessibilityLabel(L("Share Highlights and Notes"))
             }
         }
     }
@@ -97,9 +97,9 @@ struct DCMarksView: View {
             Group {
                 switch filter {
                 case .all:
-                    Text("All")
+                    Text(L("All"))
                 case .notes:
-                    Label("Notes", systemImage: "note.text")
+                    Label(L("Notes"), systemImage: "note.text")
                 case .style(let style):
                     if let swatch = style.swatchColor {
                         Circle()
@@ -123,8 +123,8 @@ struct DCMarksView: View {
 
     private func accessibilityLabel(for filter: DCMarksViewModel.Filter) -> String {
         switch filter {
-        case .all: "All"
-        case .notes: "Notes"
+        case .all: L("All")
+        case .notes: L("Notes")
         case .style(let style): style.menuTitle
         }
     }
@@ -134,11 +134,11 @@ struct DCMarksView: View {
             Image(systemName: iconName(for: viewModel.primaryType))
                 .font(.system(size: 28))
                 .foregroundStyle(.secondary)
-            Text(viewModel.filter == .all ? "No marks" : "No matches")
+            Text(viewModel.filter == .all ? L("No marks") : L("No matches"))
                 .font(.headline)
             Text(viewModel.filter == .all
                  ? emptyMessage(for: viewModel.primaryType)
-                 : "Nothing in this book matches this filter.")
+                 : L("Nothing in this book matches this filter."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -172,7 +172,7 @@ struct DCMarksView: View {
                     Text("\(page)")
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.secondary)
-                        .accessibilityLabel("Page \(page)")
+                        .accessibilityLabel(String(format: L("Page %lld"), page))
                 }
             }
         }
@@ -233,11 +233,11 @@ struct DCMarksView: View {
     private func emptyMessage(for type: DCHighlight.MarkType) -> String {
         switch type {
         case .highlight:
-            return "This book does not have highlights yet."
+            return L("This book does not have highlights yet.")
         case .note:
-            return "This book does not have notes yet."
+            return L("This book does not have notes yet.")
         case .bookMark:
-            return "This book does not have bookmarks yet."
+            return L("This book does not have bookmarks yet.")
         }
     }
 }

@@ -79,7 +79,7 @@ extension DCWebView {
         }
         colors.preferredElementSize = .small
 
-        let addNote = UIAction(title: "Add Note", image: UIImage(systemName: "note.text.badge.plus")) { [weak self] _ in
+        let addNote = UIAction(title: L("Add Note"), image: UIImage(systemName: "note.text.badge.plus")) { [weak self] _ in
             self?.addNoteToSelection()
         }
 
@@ -87,17 +87,17 @@ extension DCWebView {
         // "Search Web" gives way to searching the book.
         var lookUp = systemLookUp
         if lookUp.isEmpty {
-            lookUp = [UIAction(title: "Look Up", image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
+            lookUp = [UIAction(title: L("Look Up"), image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
                 self?.lookUpSelection()
             }]
         }
-        let search = UIAction(title: "Search", image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
+        let search = UIAction(title: L("Search"), image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
             self?.searchBookForSelection()
         }
-        let copy = UIAction(title: "Copy", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
+        let copy = UIAction(title: L("Copy"), image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
             self?.copySelection()
         }
-        let share = UIAction(title: "Share…", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
+        let share = UIAction(title: L("Share…"), image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
             self?.shareSelection()
         }
 
@@ -321,12 +321,12 @@ extension DCHighlightStyle {
 
     var menuTitle: String {
         switch self {
-        case .yellow: "Yellow"
-        case .green: "Green"
-        case .blue: "Blue"
-        case .pink: "Pink"
-        case .purple: "Purple"
-        case .underline: "Underline"
+        case .yellow: L("Yellow")
+        case .green: L("Green")
+        case .blue: L("Blue")
+        case .pink: L("Pink")
+        case .purple: L("Purple")
+        case .underline: L("Underline")
         }
     }
 

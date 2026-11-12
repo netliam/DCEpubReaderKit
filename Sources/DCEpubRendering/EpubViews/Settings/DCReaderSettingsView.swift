@@ -43,7 +43,7 @@ struct DCReaderSettingsView: View {
                 NavigationLink {
                     DCReaderCustomizeView(viewModel: viewModel)
                 } label: {
-                    Label("Customize", systemImage: "gearshape")
+                    Label(L("Customize"), systemImage: "gearshape")
                         .font(.headline)
                         .frame(maxWidth: .infinity, minHeight: Constants.controlHeight)
                         .background(.quaternary, in: Capsule())
@@ -55,7 +55,7 @@ struct DCReaderSettingsView: View {
             }
             .scrollBounceBehaviorBasedOnSize()
             .modifier(DCClearNavigationBackground())
-            .navigationTitle("Themes & Settings")
+            .navigationTitle(L("Themes & Settings"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -64,7 +64,7 @@ struct DCReaderSettingsView: View {
                     } label: {
                         Image(systemName: "xmark")
                     }
-                    .accessibilityLabel("Close")
+                    .accessibilityLabel(L("Close"))
                 }
             }
         }
@@ -77,12 +77,12 @@ struct DCReaderSettingsView: View {
             Button {
                 viewModel.changeFontSize(by: -1)
             } label: {
-                Text("A")
+                Text(L("A"))
                     .font(.system(size: 15, weight: .semibold))
                     .frame(maxWidth: .infinity, minHeight: Constants.controlHeight)
             }
             .disabled(!viewModel.canDecreaseFontSize)
-            .accessibilityLabel("Decrease text size")
+            .accessibilityLabel(L("Decrease text size"))
 
             Divider()
                 .frame(height: 24)
@@ -90,12 +90,12 @@ struct DCReaderSettingsView: View {
             Button {
                 viewModel.changeFontSize(by: 1)
             } label: {
-                Text("A")
+                Text(L("A"))
                     .font(.system(size: 22, weight: .semibold))
                     .frame(maxWidth: .infinity, minHeight: Constants.controlHeight)
             }
             .disabled(!viewModel.canIncreaseFontSize)
-            .accessibilityLabel("Increase text size")
+            .accessibilityLabel(L("Increase text size"))
         }
         .buttonStyle(.plain)
         .background(.quaternary, in: Capsule())
@@ -110,8 +110,8 @@ struct DCReaderSettingsView: View {
                     .font(.system(size: 18, weight: .medium))
                     .frame(maxWidth: .infinity, minHeight: Constants.controlHeight)
             }
-            .accessibilityLabel(viewModel.isScrolling ? "Scrolling" : "Pages")
-            .accessibilityHint("Switches between turning pages and scrolling")
+            .accessibilityLabel(viewModel.isScrolling ? L("Scrolling") : L("Pages"))
+            .accessibilityHint(L("Switches between turning pages and scrolling"))
 
             if viewModel.showsRotationLock {
                 Button {
@@ -122,8 +122,8 @@ struct DCReaderSettingsView: View {
                         .frame(maxWidth: .infinity, minHeight: Constants.controlHeight)
                         .foregroundStyle(viewModel.rotationLock ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
                 }
-                .accessibilityLabel("Rotation Lock")
-                .accessibilityValue(viewModel.rotationLock ? "On" : "Off")
+                .accessibilityLabel(L("Rotation Lock"))
+                .accessibilityValue(viewModel.rotationLock ? L("On") : L("Off"))
             }
 
             Button {
@@ -134,8 +134,8 @@ struct DCReaderSettingsView: View {
                     .frame(maxWidth: .infinity, minHeight: Constants.controlHeight)
                     .foregroundStyle(viewModel.followsSystemAppearance ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
             }
-            .accessibilityLabel("Match system dark mode")
-            .accessibilityValue(viewModel.followsSystemAppearance ? "On" : "Off")
+            .accessibilityLabel(L("Match system dark mode"))
+            .accessibilityValue(viewModel.followsSystemAppearance ? L("On") : L("Off"))
         }
         .buttonStyle(.plain)
         .background(.quaternary, in: Capsule())
@@ -146,7 +146,7 @@ struct DCReaderSettingsView: View {
             Image(systemName: "sun.min")
                 .accessibilityHidden(true)
             Slider(value: $brightness, in: 0...1)
-                .accessibilityLabel("Brightness")
+                .accessibilityLabel(L("Brightness"))
                 .onChange(of: brightness) { newValue in
                     DCScreenBrightness.set(newValue, on: viewModel.windowScene)
                 }
@@ -171,7 +171,7 @@ struct DCReaderSettingsView: View {
             viewModel.select(theme)
         } label: {
             VStack(spacing: 2) {
-                Text("Aa")
+                Text(L("Aa"))
                     .font(.system(size: 30, weight: theme.fontWeight > 400 ? .bold : .regular))
                 Text(theme.name)
                     .font(.caption)
@@ -200,7 +200,7 @@ struct DCReaderCustomizeView: View {
 
     var body: some View {
         Form {
-            Section("Font") {
+            Section(L("Font")) {
                 ForEach(DCFontFamily.allCases, id: \.self) { font in
                     Button {
                         viewModel.select(font)
@@ -239,8 +239,8 @@ struct DCReaderCustomizeView: View {
                 }
             }
 
-            Section("Text") {
-                Picker("Line Spacing", selection: Binding(
+            Section(L("Text")) {
+                Picker(L("Line Spacing"), selection: Binding(
                     get: { viewModel.textLayout.lineSpacing },
                     set: { viewModel.select($0) }
                 )) {
@@ -248,7 +248,7 @@ struct DCReaderCustomizeView: View {
                         Text(spacing.name).tag(spacing)
                     }
                 }
-                Picker("Margins", selection: Binding(
+                Picker(L("Margins"), selection: Binding(
                     get: { viewModel.textLayout.margins },
                     set: { viewModel.select($0) }
                 )) {
@@ -256,56 +256,56 @@ struct DCReaderCustomizeView: View {
                         Text(margins.name).tag(margins)
                     }
                 }
-                Toggle("Justify Text", isOn: Binding(
+                Toggle(L("Justify Text"), isOn: Binding(
                     get: { viewModel.textLayout.justified },
                     set: { viewModel.setJustified($0) }
                 ))
-                spacingSlider("Character Spacing",
+                spacingSlider(L("Character Spacing"),
                               value: viewModel.textLayout.characterSpacing,
                               set: viewModel.setCharacterSpacing)
-                spacingSlider("Word Spacing",
+                spacingSlider(L("Word Spacing"),
                               value: viewModel.textLayout.wordSpacing,
                               set: viewModel.setWordSpacing)
             }
 
             Section {
-                ColorPicker("Background", selection: Binding(
+                ColorPicker(L("Background"), selection: Binding(
                     get: { viewModel.currentAppearance.backgroundColor },
                     set: { viewModel.setThemeColors(background: UIColor($0)) }
                 ), supportsOpacity: false)
-                ColorPicker("Text", selection: Binding(
+                ColorPicker(L("Text"), selection: Binding(
                     get: { viewModel.currentAppearance.textColor },
                     set: { viewModel.setThemeColors(text: UIColor($0)) }
                 ), supportsOpacity: false)
-                Button("Reset to Theme Colors", role: .destructive) {
+                Button(L("Reset to Theme Colors"), role: .destructive) {
                     viewModel.resetThemeColors()
                 }
                 .disabled(!viewModel.currentAppearance.hasCustomColors)
             } header: {
-                Text("Theme Colors")
+                Text(L("Theme Colors"))
             } footer: {
-                Text("Changes the \(viewModel.currentPaletteName) theme.")
+                Text(String(format: L("Changes the %@ theme."), viewModel.currentPaletteName))
             }
 
-            Section("Layout") {
-                Toggle("Scrolling", isOn: Binding(
+            Section(L("Layout")) {
+                Toggle(L("Scrolling"), isOn: Binding(
                     get: { viewModel.isScrolling },
                     set: { viewModel.setScrolling($0) }
                 ))
                 if viewModel.showsRotationLock {
-                    Toggle("Lock Rotation", isOn: Binding(
+                    Toggle(L("Lock Rotation"), isOn: Binding(
                         get: { viewModel.rotationLock },
                         set: { viewModel.setRotationLock($0) }
                     ))
                 }
                 if !viewModel.isScrolling {
-                    Toggle("Allow Multiple Columns", isOn: Binding(
+                    Toggle(L("Allow Multiple Columns"), isOn: Binding(
                         get: { viewModel.textLayout.allowsSpreads },
                         set: { viewModel.setAllowsSpreads($0) }
                     ))
                 }
                 if !viewModel.isScrolling && viewModel.configuration.allowsPageCurl {
-                    Picker("Page Turn", selection: Binding(
+                    Picker(L("Page Turn"), selection: Binding(
                         get: { viewModel.selectedTransition },
                         set: { viewModel.select($0) }
                     )) {
@@ -318,11 +318,11 @@ struct DCReaderCustomizeView: View {
 
             if viewModel.configuration.showsLineGuide {
                 Section {
-                    Toggle("Line Guide", isOn: Binding(
+                    Toggle(L("Line Guide"), isOn: Binding(
                         get: { viewModel.lineFocus },
                         set: { viewModel.setLineFocus($0) }
                     ))
-                    Picker("Style", selection: Binding(
+                    Picker(L("Style"), selection: Binding(
                         get: { viewModel.selectedLineFocusStyle },
                         set: { viewModel.select($0) }
                     )) {
@@ -331,15 +331,15 @@ struct DCReaderCustomizeView: View {
                         }
                     }
                 } header: {
-                    Text("Line Guide")
+                    Text(L("Line Guide"))
                 } footer: {
-                    Text("Keeps the line you're reading prominent by dimming or blurring the rest. Tap a line to focus it; tap it again to move to the next.")
+                    Text(L("Keeps the line you're reading prominent by dimming or blurring the rest. Tap a line to focus it; tap it again to move to the next."))
                 }
             }
         }
         .scrollContentBackground(.hidden)
         .modifier(DCClearNavigationBackground())
-        .navigationTitle("Customize")
+        .navigationTitle(L("Customize"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -352,14 +352,14 @@ extension DCReaderCustomizeView {
             HStack {
                 Text(title)
                 Spacer()
-                Text(value == 0 ? "Default" : "+\(value)")
+                Text(value == 0 ? L("Default") : "+\(value)")
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
             Slider(value: Binding(get: { Double(value) }, set: { set(Int($0.rounded())) }),
                    in: Double(steps.lowerBound)...Double(steps.upperBound), step: 1)
                 .accessibilityLabel(title)
-                .accessibilityValue(value == 0 ? "Default" : "\(value) of \(steps.upperBound)")
+                .accessibilityValue(value == 0 ? L("Default") : String(format: L("%lld of %lld"), value, steps.upperBound))
         }
     }
 }

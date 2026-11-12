@@ -50,7 +50,7 @@ extension DCReaderView {
     /// Close, pages left in the chapter, and bookmark.
     private var topControls: some View {
         HStack(spacing: 12) {
-            DCChromeButton(systemImage: "xmark", accessibilityLabel: "Close") {
+            DCChromeButton(systemImage: "xmark", accessibilityLabel: L("Close")) {
                 close()
             }
             Spacer(minLength: 0)
@@ -61,7 +61,7 @@ extension DCReaderView {
                 .lineLimit(1)
             Spacer(minLength: 0)
             DCChromeButton(systemImage: viewModel.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark",
-                           accessibilityLabel: viewModel.isCurrentPageBookmarked ? "Remove Bookmark" : "Add Bookmark") {
+                           accessibilityLabel: viewModel.isCurrentPageBookmarked ? L("Remove Bookmark") : L("Add Bookmark")) {
                 viewModel.toggleBookmark()
             }
         }
@@ -90,31 +90,31 @@ extension DCReaderView {
                     Button {
                         viewModel.toggleLineFocus()
                     } label: {
-                        Label("Line Guide", systemImage: "text.line.first.and.arrowtriangle.forward")
+                        Label(L("Line Guide"), systemImage: "text.line.first.and.arrowtriangle.forward")
                     }
                 }
                 Button {
                     Task { await viewModel.share() }
                 } label: {
-                    Label("Share", systemImage: "square.and.arrow.up")
+                    Label(L("Share…"), systemImage: "square.and.arrow.up")
                 }
             }
             Button {
                 viewModel.showContents = true
             } label: {
-                Label("Contents", systemImage: "list.bullet.rectangle.portrait")
+                Label(L("Contents"), systemImage: "list.bullet.rectangle.portrait")
             }
             if viewModel.configuration.showsSearch {
                 Button {
                     viewModel.showSearch = true
                 } label: {
-                    Label("Search Book", systemImage: "magnifyingglass")
+                    Label(L("Search Book"), systemImage: "magnifyingglass")
                 }
             }
             Button {
                 viewModel.showSettings = true
             } label: {
-                Label("Themes & Settings", systemImage: "textformat.size")
+                Label(L("Themes & Settings"), systemImage: "textformat.size")
             }
         } label: {
             DCChromeButtonLabel(systemImage: "ellipsis")
@@ -122,7 +122,7 @@ extension DCReaderView {
         .menuOrder(.fixed)
         // Menus tint their label with the accent color; match the other floating buttons.
         .tint(.primary)
-        .accessibilityLabel("Reader Menu")
+        .accessibilityLabel(L("Reader Menu"))
     }
 }
 
@@ -153,7 +153,7 @@ extension DCReaderView {
             DCSearchViewBuilder().build(viewModel: viewModel.searchViewModel)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Close") {
+                        Button(L("Close")) {
                             viewModel.showSearch = false
                         }
                     }
@@ -270,9 +270,9 @@ struct DCProgressScrubber: View {
         .animation(.easeInOut(duration: 0.15), value: dragFraction == nil)
         .animation(.easeInOut(duration: 0.2), value: viewModel.backButtonTitle)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Progress")
+        .accessibilityLabel(L("Progress"))
         .accessibilityValue(viewModel.progressText)
-        .accessibilityHint("Swipe up or down to move by chapter.")
+        .accessibilityHint(L("Swipe up or down to move by chapter."))
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment: viewModel.jumpChapter(by: 1)

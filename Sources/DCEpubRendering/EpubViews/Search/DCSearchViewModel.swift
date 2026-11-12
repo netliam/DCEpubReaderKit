@@ -109,7 +109,7 @@ final class DCSearchViewModel: ObservableObject {
 
     private static func section(for results: [DCSearchResult]) -> DCSearchSection {
         let first = results[0]
-        let title = first.chapterTitle.isEmpty ? "Section \(first.spineIndex + 1)" : first.chapterTitle
+        let title = first.chapterTitle.isEmpty ? String(format: L("Section %lld"), first.spineIndex + 1) : first.chapterTitle
         return DCSearchSection(spineIndex: first.spineIndex, title: title, results: results)
     }
 }

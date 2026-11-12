@@ -79,17 +79,17 @@ extension DCWebView {
         }
         colors.preferredElementSize = .small
 
-        let note = UIAction(title: highlight.hasNote ? "Edit Note" : "Add Note",
+        let note = UIAction(title: highlight.hasNote ? L("Edit Note") : L("Add Note"),
                             image: UIImage(systemName: highlight.hasNote ? "note.text" : "note.text.badge.plus")) { [weak self] _ in
             self?.viewModel.showNoote(highlight: highlight)
         }
-        let copy = UIAction(title: "Copy", image: UIImage(systemName: "doc.on.doc")) { _ in
+        let copy = UIAction(title: L("Copy"), image: UIImage(systemName: "doc.on.doc")) { _ in
             UIPasteboard.general.string = highlight.text
         }
-        let share = UIAction(title: "Share…", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
+        let share = UIAction(title: L("Share…"), image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
             self?.share(highlight)
         }
-        let delete = UIAction(title: highlight.hasNote ? "Delete Highlight and Note" : "Delete Highlight",
+        let delete = UIAction(title: highlight.hasNote ? L("Delete Highlight and Note") : L("Delete Highlight"),
                               image: UIImage(systemName: "trash"),
                               attributes: .destructive) { [weak self] _ in
             self?.delete(highlight)

@@ -87,3 +87,32 @@ struct DCReaderConfigurationTests {
         #expect(!settings.configuration.allowsPageCurl)
     }
 }
+
+/// UI strings come from the package's own string catalog.
+@Suite("Localization")
+struct DCLocalizationTests {
+    @Test func everyKeyInCodeIsInTheCatalog() throws {
+        let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../Sources/DCEpubRendering").standardizedFileURL
+        let catalogURL = sources.appendingPathComponent("Resources/Localizable.xcstrings")
+        let catalog = try JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any]
+        let keys = Set(((catalog?["strings"] as? [String: Any]) ?? [:]).keys)
+
+        let regex = try NSRegularExpression(pattern: #"(?<![A-Za-z_])L\("((?:[^"\\]|\\.)*)"\)"#)
+        var missing: [String] = []
+        let files = FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil)!
+        for case let file as URL in files where file.pathExtension == "swift" {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+                let key = String(text[Range(match.range(at: 1), in: text)!])
+                if !keys.contains(key) { missing.append("\(file.lastPathComponent): \(key)") }
+            }
+        }
+        #expect(missing.isEmpty, "Add to Localizable.xcstrings: \(missing)")
+    }
+
+    @Test func stringsResolveFromThePackageBundle() {
+        #expect(L("Contents") == "Contents")
+        #expect(String(format: L("Back to Page %lld"), 12) == "Back to Page 12")
+    }
+}

@@ -93,7 +93,7 @@ struct DCFootnoteView: View {
                 .textSelection(.enabled)
                 .padding(16)
         }
-        .accessibilityLabel("Footnote")
+        .accessibilityLabel(L("Footnote"))
         .accessibilityValue(text)
     }
 }

@@ -104,7 +104,7 @@ public struct DCReaderView: View {
                             .padding(.bottom, DCReaderChrome.bottomInset)
                             .id(viewModel.readerConfigId(for: idx))
                     } else {
-                        Text("Unable to resolve chapter at spine index \(idx).")
+                        Text(String(format: L("Unable to open section %lld."), idx + 1))
                             .foregroundStyle(viewModel.textColor)
                             .padding()
                     }

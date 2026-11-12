@@ -114,9 +114,9 @@ struct DCMarksExportTests {
         Book by Author
 
         ONE
-        “First passage.” (page 3)
+        “First passage.” (p. 3)
 
-        “Second” (page 4)
+        “Second” (p. 4)
         Note: My thought
 
         TWO
@@ -125,7 +125,7 @@ struct DCMarksExportTests {
 
         // It shares what the list shows.
         viewModel.filter = .notes
-        #expect(viewModel.exportText == "Book by Author\n\nONE\n“Second” (page 4)\nNote: My thought")
+        #expect(viewModel.exportText == "Book by Author\n\nONE\n“Second” (p. 4)\nNote: My thought")
     }
 
     @Test func bookmarksDoNotExport() async {

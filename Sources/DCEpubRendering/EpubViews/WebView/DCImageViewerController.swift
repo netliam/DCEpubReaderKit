@@ -48,7 +48,7 @@ final class DCImageViewerController: UIViewController, UIScrollViewDelegate {
         imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         imageView.isAccessibilityElement = true
         imageView.accessibilityTraits = .image
-        imageView.accessibilityLabel = imageDescription.isEmpty ? "Image" : imageDescription
+        imageView.accessibilityLabel = imageDescription.isEmpty ? L("Image") : imageDescription
         scrollView.addSubview(imageView)
 
         let doubleTap = UITapGestureRecognizer(target: self, action: #selector(toggleZoom(_:)))
@@ -60,7 +60,7 @@ final class DCImageViewerController: UIViewController, UIScrollViewDelegate {
         scrollView.addGestureRecognizer(swipeDown)
 
         var configuration = UIButton.Configuration.filled()
-        configuration.title = "Done"
+        configuration.title = L("Done")
         configuration.cornerStyle = .capsule
         configuration.baseBackgroundColor = UIColor.white.withAlphaComponent(0.2)
         configuration.baseForegroundColor = .white

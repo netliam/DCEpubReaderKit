@@ -205,9 +205,9 @@ final class DCReaderViewModel: ObservableObject {
     var pagesLeftInChapterText: String {
         let left = max(0, totalPages - currentPage)
         switch left {
-        case 0: return "Last page in chapter"
-        case 1: return "1 page left in chapter"
-        default: return "\(left) pages left in chapter"
+        case 0: return L("Last page in chapter")
+        case 1: return L("1 page left in chapter")
+        default: return String(format: L("%lld pages left in chapter"), left)
         }
     }
 
@@ -310,15 +310,15 @@ final class DCReaderViewModel: ObservableObject {
 
     /// The chapter title shown above the scrubber while dragging.
     func scrubTitle(for target: ScrubTarget) -> String {
-        book.chapterTitle(forSpineIndex: target.spineIndex) ?? "Chapter \(target.spineIndex + 1)"
+        book.chapterTitle(forSpineIndex: target.spineIndex) ?? String(format: L("Chapter %lld"), target.spineIndex + 1)
     }
 
     /// "Page 415 of 832", or the chapter while the book is still being counted.
     func scrubDetail(for target: ScrubTarget) -> String {
         if let page = target.bookPage, let total = target.bookTotal {
-            return "Page \(page) of \(total)"
+            return String(format: L("Page %lld of %lld"), page, total)
         }
-        return "Chapter \(target.spineIndex + 1) of \(max(book.spine.count, 1))"
+        return String(format: L("Chapter %lld of %lld"), target.spineIndex + 1, max(book.spine.count, 1))
     }
 
     /// Opens the page the scrubber was released on.
@@ -369,9 +369,9 @@ final class DCReaderViewModel: ObservableObject {
         let isOnBackPage = back.spineIndex == currentSelection && back.pageIndex == currentPage - 1
         if isSameLayout, isOnBackPage { return nil }
         if let page = back.bookPage, isSameLayout {
-            return "Back to Page \(page)"
+            return String(format: L("Back to Page %lld"), page)
         }
-        return "Back to \(book.chapterTitle(forSpineIndex: back.spineIndex) ?? "Chapter \(back.spineIndex + 1)")"
+        return String(format: L("Back to %@"), book.chapterTitle(forSpineIndex: back.spineIndex) ?? String(format: L("Chapter %lld"), back.spineIndex + 1))
     }
 
     /// Returns to the page before the last jump.
@@ -404,7 +404,7 @@ final class DCReaderViewModel: ObservableObject {
         if let position = bookPagePosition {
             return "\(position.page) of \(position.total)"
         }
-        return "Chapter \(currentSelection + 1) of \(max(book.spine.count, 1))"
+        return String(format: L("Chapter %lld of %lld"), currentSelection + 1, max(book.spine.count, 1))
     }
 
     /// Fraction of the book read, for the progress bar. Estimated from the chapter until counted.
@@ -892,7 +892,7 @@ final class DCReaderViewModel: ObservableObject {
         let isOn = !lineFocus
         userPreferences.setValue(key: .lineFocus, type: isOn)
         lineFocus = isOn
-        showTransientStatus("Line Guide: \(isOn ? "On" : "Off")")
+        showTransientStatus(isOn ? L("Line Guide: On") : L("Line Guide: Off"))
     }
 
     /// Collects what to share (title, author and the selected text, if any) and shows the share sheet.

@@ -61,7 +61,7 @@ enum DCFontFamily: String {
 
     var name: String {
         switch self {
-        case .original: "Original"
+        case .original: L("Original")
         case .andada: "AndadaPro"
         case .lato: "Lato"
         case .lora: "Lora"
@@ -139,12 +139,12 @@ enum DCReaderTheme: String, CaseIterable {
 
     var name: String {
         switch self {
-        case .original: "Original"
-        case .quiet: "Quiet"
-        case .paper: "Paper"
-        case .bold: "Bold"
-        case .calm: "Calm"
-        case .focus: "Focus"
+        case .original: L("Original")
+        case .quiet: L("Quiet")
+        case .paper: L("Paper")
+        case .bold: L("Bold")
+        case .calm: L("Calm")
+        case .focus: L("Focus")
         }
     }
 
@@ -250,9 +250,9 @@ enum DCBookrOrientation: String {
     var name: String {
         switch self {
         case .vertical:
-            "Vertical"
+            L("Vertical")
         case .horizontal:
-            "Horizontal"
+            L("Horizontal")
         }
     }
 
@@ -281,9 +281,9 @@ enum DCPageTransition: String {
     var name: String {
         switch self {
         case .curl:
-            "Curl"
+            L("Curl")
         case .slide:
-            "Slide"
+            L("Slide")
         }
     }
 
@@ -314,11 +314,11 @@ enum DCLineSpacing: String, CaseIterable, Sendable {
 
     var name: String {
         switch self {
-        case .original: "Original"
-        case .tight: "Tight"
-        case .normal: "Normal"
-        case .relaxed: "Relaxed"
-        case .loose: "Loose"
+        case .original: L("Original")
+        case .tight: L("Tight")
+        case .normal: L("Normal")
+        case .relaxed: L("Relaxed")
+        case .loose: L("Loose")
         }
     }
 
@@ -342,9 +342,9 @@ enum DCPageMargins: String, CaseIterable, Sendable {
 
     var name: String {
         switch self {
-        case .narrow: "Narrow"
-        case .normal: "Normal"
-        case .wide: "Wide"
+        case .narrow: L("Narrow")
+        case .normal: L("Normal")
+        case .wide: L("Wide")
         }
     }
 

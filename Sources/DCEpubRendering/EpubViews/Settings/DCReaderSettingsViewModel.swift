@@ -157,7 +157,7 @@ final class DCReaderSettingsViewModel: ObservableObject {
 
     var currentPaletteName: String {
         let isDark = followsSystemAppearance && systemIsDark
-        return "\(selectedTheme.name)\(isDark ? " (Dark)" : "")"
+        return isDark ? String(format: L("%@ (Dark)"), selectedTheme.name) : selectedTheme.name
     }
 
     func setThemeColors(background: UIColor? = nil, text: UIColor? = nil) {

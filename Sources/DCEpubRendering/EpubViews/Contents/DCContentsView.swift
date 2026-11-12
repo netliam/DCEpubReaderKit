@@ -64,10 +64,10 @@ struct DCContentsView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("Show", selection: $tab) {
-                    Text("Contents").tag(Tab.contents)
-                    Text("Bookmarks").tag(Tab.bookmarks)
-                    Text("Highlights").tag(Tab.highlights)
+                Picker(L("Show"), selection: $tab) {
+                    Text(L("Contents")).tag(Tab.contents)
+                    Text(L("Bookmarks")).tag(Tab.bookmarks)
+                    Text(L("Highlights")).tag(Tab.highlights)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, 16)
@@ -90,7 +90,7 @@ struct DCContentsView: View {
                 }
             }
             .modifier(DCClearNavigationBackground())
-            .navigationTitle("Contents")
+            .navigationTitle(L("Contents"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -99,7 +99,7 @@ struct DCContentsView: View {
                     } label: {
                         Image(systemName: "xmark")
                     }
-                    .accessibilityLabel("Close")
+                    .accessibilityLabel(L("Close"))
                 }
             }
         }
@@ -114,7 +114,7 @@ struct DCContentsView: View {
     private var contentsList: some View {
         List {
             if entries.isEmpty {
-                Text("This book has no table of contents.")
+                Text(L("This book has no table of contents."))
                     .foregroundStyle(.secondary)
             }
             ForEach(entries) { entry in
@@ -130,7 +130,7 @@ struct DCContentsView: View {
                         if entry.id == currentEntryId {
                             Image(systemName: "book.fill")
                                 .foregroundStyle(.tint)
-                                .accessibilityLabel("Current chapter")
+                                .accessibilityLabel(L("Current chapter"))
                         }
                         if let page = pageNumber(entry) {
                             Text("\(page)")

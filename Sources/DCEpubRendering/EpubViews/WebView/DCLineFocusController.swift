@@ -18,8 +18,8 @@ enum DCLineFocusStyle: String, CaseIterable {
 
     var name: String {
         switch self {
-        case .guide: "Guide"
-        case .blur: "Blur"
+        case .guide: L("Guide")
+        case .blur: L("Blur")
         }
     }
 }

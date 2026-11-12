@@ -271,7 +271,7 @@ final class DCPageWebViewController: UIViewController {
         hasStartedLoading = true
 
         guard let chapterURL else {
-            messageLabel.text = "Unable to resolve chapter at spine index \(spineIndex)."
+            messageLabel.text = String(format: L("Unable to open section %lld."), spineIndex + 1)
             finishLoading(page: 0, count: 1)
             return
         }

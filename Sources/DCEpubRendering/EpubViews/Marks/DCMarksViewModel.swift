@@ -27,8 +27,8 @@ final class DCMarksViewModel: ObservableObject {
 
         var title: String {
             switch self {
-            case .position: "Page"
-            case .recent: "Date"
+            case .position: L("Page")
+            case .recent: L("Date")
             }
         }
     }
@@ -146,10 +146,10 @@ final class DCMarksViewModel: ObservableObject {
                 lines.append(chapter.uppercased())
                 lastChapter = chapter
             }
-            let page = pageNumber(mark).map { " (page \($0))" } ?? ""
+            let page = pageNumber(mark).map { " " + String(format: L("(p. %lld)"), $0) } ?? ""
             lines.append("“\(mark.text.trimmingCharacters(in: .whitespacesAndNewlines))”\(page)")
             if mark.hasNote {
-                lines.append("Note: \(mark.note.trimmingCharacters(in: .whitespacesAndNewlines))")
+                lines.append(String(format: L("Note: %@"), mark.note.trimmingCharacters(in: .whitespacesAndNewlines)))
             }
             sections.append(lines.joined(separator: "\n"))
         }

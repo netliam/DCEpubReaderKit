@@ -29,7 +29,7 @@ struct DCNotesView: View {
                     .font(.body)
                     .overlay(alignment: .topLeading) {
                         if viewModel.note.isEmpty {
-                            Text("Add a note")
+                            Text(L("Add a note"))
                                 .foregroundStyle(viewModel.textColor.opacity(0.4))
                                 // Lines the placeholder up with the editor's text inset.
                                 .padding(.top, 8)
@@ -38,7 +38,7 @@ struct DCNotesView: View {
                                 .accessibilityHidden(true)
                         }
                     }
-                    .accessibilityLabel("Note")
+                    .accessibilityLabel(L("Note"))
                     .onChange(of: viewModel.note) { newNote in
                         viewModel.noteDidChange(newNote)
                     }
@@ -47,13 +47,13 @@ struct DCNotesView: View {
             .padding(.top, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(viewModel.backgroundColor.ignoresSafeArea())
-            .navigationTitle("Note")
+            .navigationTitle(L("Note"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(viewModel.backgroundColor, for: .navigationBar)
             .toolbarColorScheme(viewModel.isDark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(L("Done")) {
                         viewModel.saveNow()
                         dismiss()
                     }
@@ -84,7 +84,7 @@ struct DCNotesView: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Quote: \(viewModel.quotedText)")
+        .accessibilityLabel(String(format: L("Quote: %@"), viewModel.quotedText))
     }
 }
 
