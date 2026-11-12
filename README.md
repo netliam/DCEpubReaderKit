@@ -74,17 +74,17 @@ The library is intentionally **unopinionated about storage and UI**, so it can f
 ### Swift Package Manager
 
 **Requirements:**
-- iOS 16+
+- iOS 16+ or Mac Catalyst 16+
 - Xcode 15+
 
-Add the package:
+Add the package (this fork):
 
-https://github.com/novecapa/DCEpubReaderKit.git
+https://github.com/netliam/DCEpubReaderKit.git
 
 In `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/novecapa/DCEpubReaderKit.git", branch: "main")
+.package(url: "https://github.com/netliam/DCEpubReaderKit.git", from: "0.1.0")
 ```
 
 Then:
@@ -128,6 +128,37 @@ DCReaderViewBuilder.build(
 
 To use your own storage, implement `DCReaderCoordsProtocol` directly (as the example app does with Realm),
 or implement `DCHighlightStoreProtocol` + `DCReadingPositionStoreProtocol` and keep `DCStoreReaderDelegate`.
+
+## ⚙️ Configuring the reader
+
+Pass a `DCReaderConfiguration` to `build` to change what the reader does in your app. Everything has a default:
+
+```swift
+var configuration = DCReaderConfiguration()
+configuration.defaults = UserDefaults(suiteName: "reader")!   // where settings and colors are kept
+configuration.bookId = myBook.id                            // instead of the OPF identifier
+configuration.showsSearch = false                           // also showsLineGuide, showsRotationLock, …
+configuration.onClose = { dismissWindow(id: "reader") }      // the reader has its own window
+configuration.onOpenExternalURL = { openURL($0) }
+configuration.fonts = [DCReaderFont(name: "Literata", cssFamily: "Literata", files: [literataURL])]
+
+DCReaderViewBuilder.build(book, spineIndex: 0, delegate: delegate, configuration: configuration)
+```
+
+Use the same `bookId` with `DCStoreReaderDelegate(store:bookId:)`. For rotation lock, return
+`DCReaderOrientationLock.supportedOrientations(for: window)` from your app delegate's
+`application(_:supportedInterfaceOrientationsFor:)`.
+
+## 🔁 EPUB CFI
+
+Positions and highlights are stored as the reader's own `coords`. To sync with CFI-based readers (epub.js and others),
+convert with `DCCFIConverter`:
+
+```swift
+let converter = DCCFIConverter(book: book)
+let cfi = await converter.cfi(fromCoords: highlight.coords, spineIndex: highlight.spineIndex)
+let place = await converter.coords(fromCFI: "epubcfi(/6/4[ch1]!/4/2/1:5)")   // (spineIndex, coords)
+```
 
 ## 🔍 Search
 

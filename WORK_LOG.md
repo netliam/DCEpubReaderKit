@@ -48,7 +48,11 @@ Handoff notes for continuing this work in Claude Code. They cover everything don
 | `4dbe278` | Overlapping highlights merge (notes kept). |
 | `1d86764` | Note markers in the margin. |
 | `20a232d` | Share all highlights and notes from the Highlights list. |
-| (this commit) | Audit fixes: book scripts stripped, safe merge order, one-pass search pages, NCX test, jQuery and dead JS removed. |
+| `55e76ef` | Audit fixes: book scripts stripped, safe merge order, one-pass search pages, NCX test, jQuery and dead JS removed. |
+| `6d81a7e` | `DCReaderConfiguration`; per-window lock and brightness; keyboard and trackpad paging; spreads by width. |
+| `256652e` | UI strings localized from the package's `Localizable.xcstrings`. |
+| `7a011a0` | EPUB CFI conversion (`DCCFIConverter`, `coordsToCFI`/`cfiToCoords`). |
+| (this commit) | README points at the fork; release `0.1.0`. |
 
 In total, against `main`: 74 files changed, about 8.4k insertions. The last eight commits account for 38 files and about 2.2k of them.
 
@@ -81,6 +85,9 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
 - **Theme colors:** `DCThemeColorStore` (UserDefaults `DCThemeColors`, keyed `theme-light|dark`). `DCReaderAppearance` now carries the resolved colors; use `hasDarkBackground` rather than `isDark` for contrast decisions.
 - **Book scripts:** `DCChapterHTMLBuilder.withoutBookScripts` removes a chapter's `<script>`s and `on…=` handlers before the reader's scripts go in, and `javascript:` links are swallowed: the reader's message handlers must only be reachable from its own code. The only script now is `EpubUtil.js` (jQuery, `EpubHelper.js` and the old highlight libraries are gone; `callHighlightURL` lives in `EpubUtil.js`).
 - **Preferences:** `UserDefaults` is the preferences store; `DCUserPreferences` is just the `CacheKey` enum.
+- **Hosts (Bow):** `DCReaderConfiguration` carries the host's `UserDefaults` (settings, theme colors and last highlight color now live there, not in globals), `bookId`, feature flags, `onClose`, `onOpenExternalURL` and extra fonts. The reader learns its window through `DCWindowSceneReader` (`viewModel.windowScene`); lock and brightness use that scene.
+- **Localization:** UI strings go through `L("…")` (package bundle). Values use format keys + `String(format:)`. A test fails if a key in code is missing from `Localizable.xcstrings`; Xcode's symbol generation rejects keys that differ only in case/punctuation.
+- **CFI:** the converter assumes `<spine>` is the package's third element (`/6`), like epub.js.
 - **Last highlight color:** `DCHighlightStyle.lastUsed` (UserDefaults key `DCLastHighlightStyle`).
 - **Search result pages** are exact: after each search, `DCBookPaginator.locateSearch` lays out each matching chapter off screen and runs `highlightSearchOccurrence` for every match, the same code the reader jumps with. The sheet shows the estimate until then.
 - **Scrolling mode:**
@@ -110,7 +117,7 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
 
 ## Testing
 
-- Uses Swift Testing (118 tests). WebKit-backed suites are nested under `WebKitBackedTests` (in `DCSearchHighlightJSTests.swift`), which runs serially.
+- Uses Swift Testing (129 tests). WebKit-backed suites are nested under `WebKitBackedTests` (in `DCSearchHighlightJSTests.swift`), which runs serially.
 - Run via `xcodebuild`, because Xcode's in-memory file list can be stale for new files:
 
   ```sh
