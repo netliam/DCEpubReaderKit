@@ -52,6 +52,8 @@ struct DCContentsView: View {
     let pageNumber: (DCContentsEntry) -> Int?
     /// Whole-book page of a bookmark or highlight, once the book has been counted.
     let markPageNumber: (DCHighlight) -> Int?
+    /// "Title by Author", heading exported highlights.
+    var bookByline: String = ""
     let highlightsProvider: () async -> [DCHighlight]
     let onSelectEntry: (DCContentsEntry) -> Void
     let onSelectMark: (DCHighlight) -> Void
@@ -83,6 +85,7 @@ struct DCContentsView: View {
                     DCMarksViewBuilder().build(types: [.highlight, .note],
                                                highlightsProvider: highlightsProvider,
                                                pageNumber: markPageNumber,
+                                               exportHeading: bookByline,
                                                onSelect: onSelectMark)
                 }
             }

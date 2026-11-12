@@ -44,7 +44,10 @@ Handoff notes for continuing this work in Claude Code. They cover everything don
 | `668a024` | Two-page spreads in landscape; Allow Multiple Columns; settings sheet scrolls on short screens. |
 | `5ade87e` | Fixed-layout (pre-paginated) books: one designed page, scaled to fit. |
 | `ebcdd90` | iOS fonts Books offers (Athelas … Seravek); character and word spacing. |
-| (this commit) | Custom theme colors in Customize. |
+| `58deb2a` | Custom theme colors in Customize. |
+| `4dbe278` | Overlapping highlights merge (notes kept). |
+| `1d86764` | Note markers in the margin. |
+| (this commit) | Share all highlights and notes from the Highlights list. |
 
 In total, against `main`: 74 files changed, about 8.4k insertions. The last eight commits account for 38 files and about 2.2k of them.
 
@@ -55,7 +58,9 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
   - `highlightCoords` returns early when the highlight is already drawn, so pages of a chapter can redraw each other's saves.
   - Selection granularity is `.character` in both readers. With the default, a dragged selection snapped to whole paragraphs and couldn't cross a paragraph break.
 - **Keeping pages in sync.** Saving a highlight posts `.dcHighlightDidChange`. Every `DCWebView` redraws its color and note marker (`updateDrawnHighlight`).
-- **Note marker:** `[data-dc-note]::after` in `Style.css`, a CSS mask in the text color. Being a pseudo-element, it adds no text, so coords are unaffected.
+- **Note marker:** `layoutNoteMarkers()` in `EpubUtil.js` draws `.dc-note-marker` divs in a layer on `<html>` (outside `<body>`, so no text, no line-break or coords changes), in the column gap (paged) or right margin (scrolling) beside the noted passage's last line. Relaid out after pagination and on note/highlight changes. Note `Style.css` has `div { max-width: 100% }`, so the marker needs `max-width: none`.
+- **Merging:** `expandSelectionOverHighlights()` widens the selection over overlapped highlights using whole-body character offsets (node references don't survive unwrapping), removes them, and `saveSelection` deletes them from the store and joins their notes.
+- **Export:** `DCMarksViewModel.exportText`, shared through `DCShareSheet` from the Highlights list; it follows the current filter and sort.
 - **Taps on highlights and links:** `isTappableAtPoint` (JS) is checked by both readers' chrome-tap handlers, so these taps don't also toggle the controls or turn the page.
 - **Links:** a capture-phase click listener in `EpubUtil.js` (`linkAction`) posts `linkTapped` messages:
   - `footnote`: a note in the same chapter, with its text. Shown in a popover by `DCWebView+Links.swift`.
@@ -102,7 +107,7 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
 
 ## Testing
 
-- Uses Swift Testing (110 tests). WebKit-backed suites are nested under `WebKitBackedTests` (in `DCSearchHighlightJSTests.swift`), which runs serially.
+- Uses Swift Testing (116 tests). WebKit-backed suites are nested under `WebKitBackedTests` (in `DCSearchHighlightJSTests.swift`), which runs serially.
 - Run via `xcodebuild`, because Xcode's in-memory file list can be stale for new files:
 
   ```sh
@@ -115,6 +120,7 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
   The iPhone 17 (iOS 27.2) simulator sometimes fails to boot. Using an already-booted simulator by id works.
 - `WKWebView` snapshots are blank in the test runner (no host app), so check the blur line focus in the app.
 - WebKit test pages need `<meta name='viewport' content='width=device-width'>`. Without it the page lays out at 980 px wide, and pagination tests don't paginate.
+- Simulator screenshots taken at `scale: 0.3` are 920×2000 for a 402×874-point screen: divide by about 2.29 to get tap points.
 - In the simulator, taps from the control tool can be too short to flip a SwiftUI `Toggle`. A two-point touch path with about 120 ms between points works.
 - Build and run the example app:
 

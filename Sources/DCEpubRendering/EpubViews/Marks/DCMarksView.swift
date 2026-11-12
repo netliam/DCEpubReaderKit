@@ -11,6 +11,8 @@ import DCEpubCore
 struct DCMarksView: View {
 
     @ObservedObject var viewModel: DCMarksViewModel
+    /// The exported highlights while the share sheet is up.
+    @State private var shareText: String?
 
     var body: some View {
         List {
@@ -35,6 +37,10 @@ struct DCMarksView: View {
         .scrollContentBackground(.hidden)
         .task {
             await viewModel.loadIfNeeded()
+        }
+        .sheet(isPresented: Binding(get: { shareText != nil }, set: { if !$0 { shareText = nil } })) {
+            DCShareSheet(items: [shareText ?? ""])
+                .presentationDetents([.medium, .large])
         }
     }
 
@@ -66,6 +72,20 @@ struct DCMarksView: View {
             }
             .accessibilityLabel("Sort By")
             .accessibilityValue(viewModel.sort.title)
+
+            if viewModel.canExport {
+                Button {
+                    shareText = viewModel.exportText
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                // In a List row, buttons without their own style don't get their taps.
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Share Highlights and Notes")
+            }
         }
     }
 

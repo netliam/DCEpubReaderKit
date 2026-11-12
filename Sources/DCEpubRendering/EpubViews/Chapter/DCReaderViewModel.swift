@@ -463,6 +463,11 @@ final class DCReaderViewModel: ObservableObject {
         book.bookTitle
     }
 
+    /// "Title by Author", as Share uses it.
+    var bookByline: String {
+        book.shareText(quoting: nil)
+    }
+
     var userPreferences: DCUserPreferencesProtocol {
         userPreferencesProtocol
     }

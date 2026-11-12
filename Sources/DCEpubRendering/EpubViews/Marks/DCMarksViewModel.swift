@@ -44,12 +44,16 @@ final class DCMarksViewModel: ObservableObject {
 
     /// Whole-book page of a mark, once the book has been counted.
     let pageNumber: (DCHighlight) -> Int?
+    /// Heads exported highlights ("Title by Author"); `nil` when this list doesn't export.
+    let exportHeading: String?
 
     init(types: [DCHighlight.MarkType] = [.highlight, .note, .bookMark],
          highlightsProvider: @escaping () async -> [DCHighlight],
          pageNumber: @escaping (DCHighlight) -> Int? = { _ in nil },
+         exportHeading: String? = nil,
          onSelect: @escaping (DCHighlight) -> Void) {
         self.pageNumber = pageNumber
+        self.exportHeading = exportHeading
         self.types = types
         self.highlightsProvider = highlightsProvider
         self.onSelect = onSelect
@@ -118,6 +122,38 @@ final class DCMarksViewModel: ObservableObject {
         if !availableFilters.contains(filter) {
             filter = .all
         }
+    }
+
+    // MARK: Export
+
+    /// Whether Share is offered: on the highlights list, once there's something to share.
+    var canExport: Bool {
+        exportHeading != nil && !filteredHighlights.isEmpty
+    }
+
+    /// The highlights and notes listed (with the current filter and order), as text to share:
+    /// the book, then each passage under its chapter and page, with its note.
+    var exportText: String {
+        var sections: [String] = []
+        if let heading = exportHeading, !heading.isEmpty {
+            sections.append(heading)
+        }
+        var lastChapter: String?
+        for mark in filteredHighlights {
+            var lines: [String] = []
+            let chapter = mark.chapterTitle.isEmpty ? mark.chapterId : mark.chapterTitle
+            if chapter != lastChapter {
+                lines.append(chapter.uppercased())
+                lastChapter = chapter
+            }
+            let page = pageNumber(mark).map { " (page \($0))" } ?? ""
+            lines.append("“\(mark.text.trimmingCharacters(in: .whitespacesAndNewlines))”\(page)")
+            if mark.hasNote {
+                lines.append("Note: \(mark.note.trimmingCharacters(in: .whitespacesAndNewlines))")
+            }
+            sections.append(lines.joined(separator: "\n"))
+        }
+        return sections.joined(separator: "\n\n")
     }
 
     func didSelect(_ highlight: DCHighlight) {

@@ -20,7 +20,9 @@ These exist and are not missing:
 - **Highlights and notes:**
   - Tap a highlight for its menu (recolor, Add/Edit Note, Copy, Share, Delete).
   - Highlights across paragraphs.
-  - Note marker in the text.
+  - Note marker in the margin (tap it for the highlight's menu).
+  - Overlapping highlights merge, keeping their notes.
+  - Share all highlights and notes from the Highlights list.
   - Notes take the last highlight color.
   - Note editor quotes the passage and opens with the keyboard up.
   - Highlights list filters (color, notes) and sort (page, date).
@@ -32,11 +34,7 @@ These exist and are not missing:
 
 ## Highlights and notes
 
-| Priority | Feature | Notes |
-| --- | --- | --- |
-| P2 | Merge overlapping highlights | Highlighting text that overlaps an existing highlight should extend or merge it. Today the selection is refused. |
-| P2 | Note marker in the margin | Ours is an inline icon after the highlight. Books puts it in the margin, which wouldn't affect line breaks. |
-| P3 | Export or share all highlights and notes | Books can share or export a book's annotations. |
+All done.
 
 ## Reading experience
 

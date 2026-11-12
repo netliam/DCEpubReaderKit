@@ -90,3 +90,47 @@ struct DCMarksFilterTests {
         #expect(viewModel.filteredHighlights.map(\.uuid) == ["bookmark"])
     }
 }
+
+/// Sharing all highlights and notes from the Highlights list.
+@MainActor
+@Suite("Export highlights")
+struct DCMarksExportTests {
+    @Test func exportsTheListedHighlightsUnderTheirChapters() async {
+        let marks = [
+            DCHighlight(uuid: "a", bookId: "b", chapterId: "c1", spineIndex: 0, type: .highlight,
+                        text: " First passage. ", coords: "0000001>0000001|0000000", chapterTitle: "One", style: .yellow),
+            DCHighlight(uuid: "b", bookId: "b", chapterId: "c1", spineIndex: 0, type: .note,
+                        text: "Second", coords: "0000001>0000002|0000000", note: "My thought", chapterTitle: "One", style: .green),
+            DCHighlight(uuid: "c", bookId: "b", chapterId: "c2", spineIndex: 1, type: .highlight,
+                        text: "Third", coords: "0000001>0000001|0000000", chapterTitle: "Two", style: .yellow)
+        ]
+        let pages = ["a": 3, "b": 4]
+        let viewModel = DCMarksViewModel(types: [.highlight, .note], highlightsProvider: { marks },
+                                         pageNumber: { pages[$0.uuid] }, exportHeading: "Book by Author",
+                                         onSelect: { _ in })
+        await viewModel.loadIfNeeded()
+        #expect(viewModel.canExport)
+        #expect(viewModel.exportText == """
+        Book by Author
+
+        ONE
+        “First passage.” (page 3)
+
+        “Second” (page 4)
+        Note: My thought
+
+        TWO
+        “Third”
+        """)
+
+        // It shares what the list shows.
+        viewModel.filter = .notes
+        #expect(viewModel.exportText == "Book by Author\n\nONE\n“Second” (page 4)\nNote: My thought")
+    }
+
+    @Test func bookmarksDoNotExport() async {
+        let viewModel = DCMarksViewModel(types: [.bookMark], highlightsProvider: { [] }, onSelect: { _ in })
+        await viewModel.loadIfNeeded()
+        #expect(!viewModel.canExport)
+    }
+}
