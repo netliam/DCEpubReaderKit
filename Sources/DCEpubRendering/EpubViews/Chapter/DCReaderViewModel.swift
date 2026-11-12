@@ -283,10 +283,65 @@ final class DCReaderViewModel: ObservableObject {
     @MainActor
     func jump(to target: ScrubTarget) {
         if target.spineIndex == currentSelection, target.pageIndex == currentPage - 1 { return }
+        rememberPositionBeforeJump()
         if isPagedMode {
             pagedNavigator?.show(spineIndex: target.spineIndex, page: target.pageIndex)
         } else {
             navigate(to: .page(target.pageIndex), in: target.spineIndex)
+        }
+    }
+
+    // MARK: Back
+
+    /// The page the reader was on before the last jump (scrubber, Contents, a mark or a search
+    /// result), for the "Back to Page N" button.
+    struct BackPosition: Equatable {
+        let spineIndex: Int
+        /// The saved position of that page, which survives a relayout; else its page index.
+        let coords: String?
+        /// 0-based, in the chapter.
+        let pageIndex: Int
+        let bookPage: Int?
+    }
+
+    @Published private(set) var backPosition: BackPosition?
+
+    private func rememberPositionBeforeJump() {
+        guard hasPagePosition else { return }
+        let coords = lastPosition?.spineIndex == currentSelection ? lastPosition?.coords : nil
+        backPosition = BackPosition(spineIndex: currentSelection,
+                                    coords: coords,
+                                    pageIndex: max(currentPage - 1, 0),
+                                    bookPage: bookPagePosition?.page)
+    }
+
+    /// "Back to Page 12", or to the chapter while the book is being counted. `nil` when there's
+    /// nowhere to go back to, or the reader is already on that page.
+    var backButtonTitle: String? {
+        guard let back = backPosition else { return nil }
+        let isOnBackPage = back.spineIndex == currentSelection && back.pageIndex == currentPage - 1
+        if isOnBackPage { return nil }
+        if let page = back.bookPage {
+            return "Back to Page \(page)"
+        }
+        return "Back to \(book.chapterTitle(forSpineIndex: back.spineIndex) ?? "Chapter \(back.spineIndex + 1)")"
+    }
+
+    /// Returns to the page before the last jump.
+    @MainActor
+    func goBack() {
+        guard let back = backPosition else { return }
+        backPosition = nil
+        if let coords = back.coords {
+            if isPagedMode {
+                pagedNavigator?.show(spineIndex: back.spineIndex, coords: coords)
+            } else {
+                navigate(to: .coords(coords), in: back.spineIndex)
+            }
+        } else if isPagedMode {
+            pagedNavigator?.show(spineIndex: back.spineIndex, page: back.pageIndex)
+        } else {
+            navigate(to: .page(back.pageIndex), in: back.spineIndex)
         }
     }
 
@@ -690,6 +745,7 @@ final class DCReaderViewModel: ObservableObject {
     @MainActor
     func navigate(to highlight: DCHighlight) {
         showContents = false
+        rememberPositionBeforeJump()
         if isPagedMode {
             pagedNavigator?.show(spineIndex: highlight.spineIndex, coords: highlight.coords)
             return
@@ -700,6 +756,7 @@ final class DCReaderViewModel: ObservableObject {
     @MainActor
     func navigate(to result: DCSearchResult, query: String) {
         showSearch = false
+        rememberPositionBeforeJump()
         if isPagedMode {
             pagedNavigator?.show(spineIndex: result.spineIndex, searchQuery: query, occurrence: result.occurrence)
             return
@@ -723,6 +780,7 @@ final class DCReaderViewModel: ObservableObject {
     func navigate(to entry: DCContentsEntry) {
         showContents = false
         guard let spineIndex = entry.spineIndex else { return }
+        rememberPositionBeforeJump()
         if isPagedMode {
             pagedNavigator?.show(spineIndex: spineIndex, fragment: entry.fragment)
         } else if let fragment = entry.fragment {

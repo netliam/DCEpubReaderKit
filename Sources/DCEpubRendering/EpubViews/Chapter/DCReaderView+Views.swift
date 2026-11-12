@@ -253,18 +253,12 @@ struct DCProgressScrubber: View {
             }
             .tint(viewModel.textColor.opacity(0.5))
             .frame(width: 220)
-            .overlay(alignment: .top) {
-                if let dragFraction {
-                    preview(for: viewModel.scrubTarget(at: dragFraction))
-                        .offset(y: -64)
-                        .transition(.opacity)
-                }
-            }
             Text(viewModel.progressText)
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(viewModel.textColor.opacity(0.6))
         }
         .animation(.easeInOut(duration: 0.15), value: dragFraction == nil)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.backButtonTitle)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Progress")
         .accessibilityValue(viewModel.progressText)
@@ -276,6 +270,34 @@ struct DCProgressScrubber: View {
             @unknown default: break
             }
         }
+        // Outside the slider's accessibility element, so VoiceOver reaches the back button.
+        // The preview takes the back button's place while dragging.
+        .overlay(alignment: .top) {
+            if let dragFraction {
+                preview(for: viewModel.scrubTarget(at: dragFraction))
+                    .offset(y: -64)
+                    .transition(.opacity)
+            } else if let backTitle = viewModel.backButtonTitle {
+                backButton(title: backTitle)
+                    .offset(y: -58)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    private func backButton(title: String) -> some View {
+        Button {
+            viewModel.goBack()
+        } label: {
+            Label(title, systemImage: "arrow.uturn.backward")
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+                .foregroundStyle(viewModel.textColor)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(.regularMaterial, in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private func preview(for target: DCReaderViewModel.ScrubTarget) -> some View {

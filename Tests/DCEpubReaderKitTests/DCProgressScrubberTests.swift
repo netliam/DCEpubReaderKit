@@ -7,6 +7,8 @@
 
 import Foundation
 import Testing
+import DCEpubCore
+import DCEpubParser
 @testable import DCEpubRendering
 
 /// Mapping the progress scrubber's position to a page of the book and back.
@@ -45,5 +47,45 @@ struct DCProgressScrubberTests {
         }
         #expect(targets.map(\.spineIndex) == [0, 1, 2, 2])
         #expect(targets.allSatisfy { $0.pageIndex == 0 && $0.bookPage == nil })
+    }
+}
+
+/// The "Back to Page N" button after a jump.
+@MainActor
+@Suite("Back to previous page")
+struct DCBackPositionTests {
+
+    @Test func noBackButtonBeforeAnyJump() throws {
+        let url = try #require(Bundle.module.url(forResource: "MinimalEPUB", withExtension: nil, subdirectory: "Fixtures"))
+        let reader = DCReaderViewModel(book: try DCEpubParser.parse(from: url),
+                                       spineIndex: 0,
+                                       userPreferencesProtocol: DCUserPreferencesMock(),
+                                       delegate: nil)
+        #expect(reader.backPosition == nil)
+        #expect(reader.backButtonTitle == nil)
+    }
+
+    @Test func jumpRemembersThePageItLeft() throws {
+        let url = try #require(Bundle.module.url(forResource: "MinimalEPUB", withExtension: nil, subdirectory: "Fixtures"))
+        let book = try DCEpubParser.parse(from: url)
+        let reader = DCReaderViewModel(book: book,
+                                       spineIndex: 0,
+                                       userPreferencesProtocol: DCUserPreferencesMock(),
+                                       delegate: nil)
+        // On page 2 of 3 of the first chapter, at a known position.
+        reader.handle(.currentPage(index: 2, totalPages: 3, spineIndex: 0), chapterURL: nil)
+        reader.handle(.coordsFirstNodeOfPage(orientation: .horizontal, spineIndex: 0, coords: "0000001>0000003|0000012", isBookMark: false),
+                      chapterURL: nil)
+        #expect(reader.hasPagePosition)
+
+        let lastChapter = book.spine.count - 1
+        reader.jump(to: .init(spineIndex: lastChapter, pageIndex: 0, bookPage: nil, bookTotal: nil))
+        let back = try #require(reader.backPosition)
+        #expect(back.spineIndex == 0)
+        #expect(back.pageIndex == 1)
+        #expect(back.coords == "0000001>0000003|0000012")
+
+        reader.goBack()
+        #expect(reader.backPosition == nil)
     }
 }
