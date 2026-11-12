@@ -73,7 +73,7 @@ final class DCPagedReaderController: UIViewController {
         self.book = book
         self.configId = configId
         self.appearance = appearance
-        self.lineFocusEnabled = userPreferences.getLineFocus()
+        self.lineFocusEnabled = userPreferences.getLineFocus() && readerContext.configuration.showsLineGuide
         self.lineFocusStyle = userPreferences.getLineFocusStyle()
         self.userPreferences = userPreferences
         self.readerContext = readerContext
@@ -117,6 +117,49 @@ final class DCPagedReaderController: UIViewController {
         press.delegate = self
         view.addGestureRecognizer(press)
         tap.require(toFail: press)
+
+        // Two-finger trackpad (and mouse wheel) swipes turn the page; touches are left to the pager.
+        let trackpad = UIPanGestureRecognizer(target: self, action: #selector(handleTrackpadSwipe(_:)))
+        trackpad.allowedScrollTypesMask = .continuous
+        trackpad.allowedTouchTypes = []
+        view.addGestureRecognizer(trackpad)
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // So the page keys work before anything else (a selection) has taken the keyboard.
+        becomeFirstResponder()
+    }
+
+    override var canBecomeFirstResponder: Bool { true }
+
+    /// ← → space ⇧space Page Up/Down turn the page, as in Books on Mac and iPad.
+    override var keyCommands: [UIKeyCommand]? {
+        let keys: [(String, UIKeyModifierFlags, Selector)] = [
+            (UIKeyCommand.inputRightArrow, [], #selector(nextPage)),
+            (UIKeyCommand.inputLeftArrow, [], #selector(previousPage)),
+            (" ", [], #selector(nextPage)),
+            (" ", .shift, #selector(previousPage)),
+            (UIKeyCommand.inputPageDown, [], #selector(nextPage)),
+            (UIKeyCommand.inputPageUp, [], #selector(previousPage))
+        ]
+        return keys.map { input, modifiers, action in
+            let command = UIKeyCommand(input: input, modifierFlags: modifiers, action: action)
+            // Before the web view's own handling (scrolling, which pages don't use).
+            command.wantsPriorityOverSystemBehavior = true
+            return command
+        }
+    }
+
+    @objc private func nextPage() { turnPage(forward: true) }
+    @objc private func previousPage() { turnPage(forward: false) }
+
+    @objc private func handleTrackpadSwipe(_ recognizer: UIPanGestureRecognizer) {
+        guard recognizer.state == .ended else { return }
+        let translation = recognizer.translation(in: view)
+        guard abs(translation.x) > max(40, abs(translation.y)) else { return }
+        // Content follows the fingers: swiping left brings in the next page.
+        turnPage(forward: translation.x < 0)
     }
 
     /// Taps near the left/right edge turn the page; a tap anywhere else toggles the reader controls.
@@ -233,6 +276,9 @@ final class DCPagedReaderController: UIViewController {
         let spineIndex = current.spineIndex
         let fallbackTarget = current.target
         reloadTask = Task { [weak self] in
+            // A window being resized lays out many times; relayout once it settles.
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled else { return }
             // Still on the page a previous relayout opened: keep that anchor. Re-reading it from the
             // relaid-out page would drift (e.g. bigger then smaller text ending a page earlier).
             if case .coords = fallbackTarget {
@@ -269,7 +315,7 @@ final class DCPagedReaderController: UIViewController {
             discardCachedPages()
         }
 
-        let style = Self.transitionStyle(for: userPreferences.getPageTransition())
+        let style = Self.transitionStyle(for: readerContext.configuration.allowsPageCurl ? userPreferences.getPageTransition() : .slide)
         let pageViewController = UIPageViewController(transitionStyle: style,
                                                       navigationOrientation: .horizontal)
         pageViewController.dataSource = self

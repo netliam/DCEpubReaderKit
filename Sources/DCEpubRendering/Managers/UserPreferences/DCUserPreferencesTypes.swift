@@ -176,27 +176,10 @@ struct DCThemeColors: Codable, Equatable, Sendable {
     var text: UInt32
 }
 
-/// Custom colors for each theme's light and dark palette, stored in user defaults.
+/// Custom colors for each theme's light and dark palette (stored with the reader settings).
 enum DCThemeColorStore {
-    nonisolated(unsafe) static var store: UserDefaults = .standard
-    private static let key = "DCThemeColors"
-
     static func key(_ theme: DCReaderTheme, isDark: Bool) -> String {
         "\(theme.rawValue)-\(isDark ? "dark" : "light")"
-    }
-
-    static var all: [String: DCThemeColors] {
-        get {
-            guard let data = store.data(forKey: key) else { return [:] }
-            return (try? JSONDecoder().decode([String: DCThemeColors].self, from: data)) ?? [:]
-        }
-        set {
-            store.set(try? JSONEncoder().encode(newValue), forKey: key)
-        }
-    }
-
-    static func colors(for theme: DCReaderTheme, isDark: Bool) -> DCThemeColors? {
-        all[key(theme, isDark: isDark)]
     }
 }
 
@@ -215,12 +198,6 @@ struct DCReaderAppearance: Equatable {
         let palette = theme.palette(isDark: isDark)
         self.background = custom?.background ?? palette.background
         self.text = custom?.text ?? palette.text
-    }
-
-    /// With the custom colors saved for this theme and palette, if any.
-    static func stored(theme: DCReaderTheme, isDark: Bool) -> DCReaderAppearance {
-        DCReaderAppearance(theme: theme, isDark: isDark,
-                           custom: DCThemeColorStore.colors(for: theme, isDark: isDark))
     }
 
     /// Whether the background is dark (by its luminance), whichever palette it comes from.
@@ -388,7 +365,7 @@ struct DCTextLayout: Equatable, Sendable {
     var margins: DCPageMargins = .normal
     /// Justified, like the reader has always been; off aligns text to the start of the line.
     var justified: Bool = true
-    /// Two columns side by side on wide landscape pages (Books' "Allow Multiple Columns").
+    /// Two columns side by side on wide pages (Books' "Allow Multiple Columns"); see `columnsPerPage` in EpubUtil.js.
     var allowsSpreads: Bool = true
     /// Extra space between letters and between words, as steps (0 is the book's own).
     var characterSpacing: Int = 0

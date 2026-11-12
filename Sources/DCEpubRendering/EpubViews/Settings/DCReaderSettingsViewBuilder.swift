@@ -21,7 +21,9 @@ final class DCReaderSettingsViewBuilder {
                rotationLock: Binding<Bool>,
                themeColors: Binding<[String: DCThemeColors]>,
                systemIsDark: Bool,
-               userPreferences: DCUserPreferencesProtocol) -> DCReaderSettingsView {
+               userPreferences: DCUserPreferencesProtocol,
+               configuration: DCReaderConfiguration = DCReaderConfiguration(),
+               windowScene: UIWindowScene? = nil) -> DCReaderSettingsView {
         let viewModel = DCReaderSettingsViewModel(fontSize: fontSize,
                                                   textFont: textFont,
                                                   theme: theme,
@@ -34,7 +36,9 @@ final class DCReaderSettingsViewBuilder {
                                                   rotationLock: rotationLock,
                                                   themeColors: themeColors,
                                                   systemIsDark: systemIsDark,
-                                                  userPreferences: userPreferences)
+                                                  userPreferences: userPreferences,
+                                                  configuration: configuration,
+                                                  windowScene: windowScene)
         return DCReaderSettingsView(viewModel: viewModel)
     }
 }

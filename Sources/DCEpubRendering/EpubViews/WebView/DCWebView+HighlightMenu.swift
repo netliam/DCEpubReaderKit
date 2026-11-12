@@ -105,7 +105,7 @@ extension DCWebView {
 
     private func restyle(_ highlight: DCHighlight, as style: DCHighlightStyle) {
         guard style != highlight.displayStyle else { return }
-        DCHighlightStyle.lastUsed = style
+        viewModel.configuration.defaults.setLastHighlightStyle(style)
         var updated = highlight
         updated.style = style
         updated.dateUpdated = Date().timeIntervalSince1970

@@ -17,11 +17,20 @@ final class DCReaderViewModel: ObservableObject {
     /// Line spacing, margins and justification.
     @Published var textLayout: DCTextLayout
     /// Custom theme colors, by theme and palette (see `DCThemeColorStore`).
-    @Published var themeColors: [String: DCThemeColors] = DCThemeColorStore.all
+    @Published var themeColors: [String: DCThemeColors]
     /// Rotation lock (see `DCReaderOrientationLock`); applied when it changes and while the reader is open.
     @Published var rotationLock: Bool {
-        didSet { if rotationLock != oldValue { DCReaderOrientationLock.setLocked(rotationLock) } }
+        didSet { if rotationLock != oldValue { DCReaderOrientationLock.setLocked(rotationLock, scene: windowScene) } }
     }
+    /// The window the reader is in (set by the view), for the rotation lock and brightness. Several
+    /// windows can be open on iPad and Mac, so "the first scene" may be another one.
+    weak var windowScene: UIWindowScene? {
+        didSet {
+            guard windowScene !== oldValue else { return }
+            if rotationLock { DCReaderOrientationLock.setLocked(true, scene: windowScene) }
+        }
+    }
+    let configuration: DCReaderConfiguration
     @Published var theme: String
     @Published var followsSystemAppearance: Bool
     /// Mirrors the system appearance (set by the view from its color scheme).
@@ -116,7 +125,9 @@ final class DCReaderViewModel: ObservableObject {
                 spineIndex: Int,
                 initialCoords: String? = nil,
                 userPreferencesProtocol: DCUserPreferencesProtocol,
-                delegate: DCReaderCoordsProtocol?) {
+                delegate: DCReaderCoordsProtocol?,
+                configuration: DCReaderConfiguration = DCReaderConfiguration()) {
+        self.configuration = configuration
         self.book = book
         self.spineIndex = spineIndex
         self.initialCoords = initialCoords
@@ -127,14 +138,15 @@ final class DCReaderViewModel: ObservableObject {
         self.currentSelection = spineIndex
         self.previousSelection = spineIndex
         self.textSize = userPreferencesProtocol.getFontSize().size
-        self.textFont = userPreferencesProtocol.getFontFamily().name
+        self.textFont = userPreferencesProtocol.getFontChoice()
+        self.themeColors = userPreferencesProtocol.getThemeColors()
         self.textLayout = userPreferencesProtocol.getTextLayout()
         self.rotationLock = userPreferencesProtocol.getRotationLock()
         self.theme = userPreferencesProtocol.getTheme().rawValue
         self.followsSystemAppearance = userPreferencesProtocol.getFollowsSystemAppearance()
         self.orientation = userPreferencesProtocol.getBookOrientation().rawValue
         self.pageTransition = userPreferencesProtocol.getPageTransition().rawValue
-        self.lineFocus = userPreferencesProtocol.getLineFocus()
+        self.lineFocus = userPreferencesProtocol.getLineFocus() && configuration.showsLineGuide
         self.lineFocusStyle = userPreferencesProtocol.getLineFocusStyle().rawValue
 
         // Defaults
@@ -143,7 +155,8 @@ final class DCReaderViewModel: ObservableObject {
         self.canTouch = true
         self.showSettings = false
         self.showContents = false
-        self.paginator = DCBookPaginator(book: book, userPreferences: userPreferencesProtocol)
+        self.paginator = DCBookPaginator(book: book, userPreferences: userPreferencesProtocol,
+                                         fonts: configuration.fonts)
         paginator.locators = { [weak self] spineIndex in
             self?.locators(in: spineIndex) ?? []
         }
@@ -162,7 +175,7 @@ final class DCReaderViewModel: ObservableObject {
     }
 
     var bookId: String {
-        book.uniqueIdentifier
+        configuration.bookId ?? book.uniqueIdentifier
     }
 
     var bookSpines: [DCSpineItem] {
@@ -843,7 +856,7 @@ final class DCReaderViewModel: ObservableObject {
     func openLink(_ url: URL) {
         guard url.isFileURL else {
             if ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "") {
-                UIApplication.shared.open(url)
+                if let open = configuration.onOpenExternalURL { open(url) } else { UIApplication.shared.open(url) }
             }
             return
         }
@@ -907,14 +920,14 @@ final class DCReaderViewModel: ObservableObject {
 
     func readerDidAppear() {
         if rotationLock {
-            DCReaderOrientationLock.setLocked(true)
+            DCReaderOrientationLock.setLocked(true, scene: windowScene)
         }
     }
 
     func readerDidDisappear() {
         paginator.cancel()
         // The lock is for reading; the rest of the app turns freely.
-        DCReaderOrientationLock.setLocked(false)
+        DCReaderOrientationLock.setLocked(false, scene: windowScene)
     }
 
     func registerChapterViewModel(_ viewModel: DCChapterWebViewModel, for index: Int) {

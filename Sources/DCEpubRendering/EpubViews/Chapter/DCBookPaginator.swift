@@ -65,9 +65,12 @@ final class DCBookPaginator {
     /// The matches `locateSearch` was last asked for, located again after a relayout.
     private var lastSearch: [SearchPlace] = []
 
-    init(book: DCEpubBook, userPreferences: DCUserPreferencesProtocol) {
+    private let fonts: [DCReaderFont]
+
+    init(book: DCEpubBook, userPreferences: DCUserPreferencesProtocol, fonts: [DCReaderFont] = []) {
         self.book = book
         self.userPreferences = userPreferences
+        self.fonts = fonts
     }
 
     var isComplete: Bool {
@@ -124,7 +127,8 @@ final class DCBookPaginator {
             let html = DCChapterHTMLBuilder.html(pathtofile: chapterURL.path,
                                                  userPreferences: userPreferences,
                                                  appearance: appearance,
-                                                 fixedLayout: book.isFixedLayout(spineIndex: spineIndex))
+                                                 fixedLayout: book.isFixedLayout(spineIndex: spineIndex),
+                                                 fonts: fonts)
             guard await loader.load(html, baseURL: chapterURL.deletingLastPathComponent(), in: webView) else { continue }
             await webView.waitForLayout()
             if layout.isVertical {
@@ -165,7 +169,8 @@ final class DCBookPaginator {
             let html = DCChapterHTMLBuilder.html(pathtofile: chapterURL.path,
                                                  userPreferences: userPreferences,
                                                  appearance: appearance,
-                                                 fixedLayout: book.isFixedLayout(spineIndex: spineIndex))
+                                                 fixedLayout: book.isFixedLayout(spineIndex: spineIndex),
+                                                 fonts: fonts)
             guard await loader.load(html, baseURL: chapterURL.deletingLastPathComponent(), in: webView) else {
                 record(1, for: spineIndex)
                 continue

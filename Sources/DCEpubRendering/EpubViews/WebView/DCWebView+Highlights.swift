@@ -104,7 +104,7 @@ extension DCWebView {
         return [
             colors,
             UIMenu(options: .displayInline, children: [addNote]),
-            UIMenu(options: .displayInline, children: lookUp + [search, copy]),
+            UIMenu(options: .displayInline, children: lookUp + (viewModel?.configuration.showsSearch ?? true ? [search] : []) + [copy]),
             UIMenu(options: .displayInline, children: [share])
         ]
     }
@@ -119,7 +119,7 @@ extension DCWebView {
 
     /// Highlights the selection with `style` and saves it.
     func highlightSelection(style: DCHighlightStyle) {
-        DCHighlightStyle.lastUsed = style
+        viewModel.configuration.defaults.setLastHighlightStyle(style)
         Task { @MainActor [weak self] in
             await self?.saveSelection(type: .highlight, style: style)
         }
@@ -129,7 +129,7 @@ extension DCWebView {
     /// the note editor.
     func addNoteToSelection() {
         Task { @MainActor [weak self] in
-            guard let self, let highlight = await self.saveSelection(type: .note, style: DCHighlightStyle.lastUsed) else { return }
+            guard let self, let highlight = await self.saveSelection(type: .note, style: self.viewModel.configuration.defaults.getLastHighlightStyle()) else { return }
             self.viewModel.showNoote(highlight: highlight)
         }
     }
@@ -316,15 +316,6 @@ extension DCHighlight {
 // MARK: - Highlight styles
 
 extension DCHighlightStyle {
-    nonisolated(unsafe) static var store: UserDefaults = .standard
-    private static let lastUsedKey = "DCLastHighlightStyle"
-
-    /// The color last chosen for a highlight (yellow at first). Add Note uses it, as Books does.
-    static var lastUsed: DCHighlightStyle {
-        get { store.string(forKey: lastUsedKey).flatMap(DCHighlightStyle.init(rawValue:)) ?? .yellow }
-        set { store.set(newValue.rawValue, forKey: lastUsedKey) }
-    }
-
     /// Class in Style.css that draws the style.
     var cssClass: String { "highlight-\(rawValue)" }
 

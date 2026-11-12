@@ -71,7 +71,7 @@ struct DCChapterWebView: UIViewRepresentable {
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.isUserInteractionEnabled = true // (scrolling stays managed by TabView disable)
 
-        webView.setLineFocus(enabled: viewModel.userPreferences.getLineFocus(),
+        webView.setLineFocus(enabled: viewModel.userPreferences.getLineFocus() && viewModel.configuration.showsLineGuide,
                              appearance: viewModel.appearance,
                              style: viewModel.userPreferences.getLineFocusStyle())
         context.coordinator.lazyWebView = webView
@@ -107,7 +107,8 @@ struct DCChapterWebView: UIViewRepresentable {
             let htmlContent = DCChapterHTMLBuilder.html(pathtofile: viewModel.chapterURL.path,
                                                         userPreferences: viewModel.userPreferences,
                                                         appearance: viewModel.appearance,
-                                                        fixedLayout: viewModel.isFixedLayout)
+                                                        fixedLayout: viewModel.isFixedLayout,
+                                                        fonts: viewModel.configuration.fonts)
             webView.loadHTMLString(htmlContent, baseURL: viewModel.chapterURL.deletingLastPathComponent())
             context.coordinator.currentChapterURL = viewModel.chapterURL
             UIView.animate(

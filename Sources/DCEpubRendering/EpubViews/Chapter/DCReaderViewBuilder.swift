@@ -13,14 +13,15 @@ public final class DCReaderViewBuilder {
     public static func build(_ book: DCEpubBook,
                              spineIndex: Int,
                              initialCoords: String? = nil,
-                             delegate: DCReaderCoordsProtocol?) -> DCReaderView {
-        let userPreferences: DCUserPreferencesProtocol = UserDefaults.standard
+                             delegate: DCReaderCoordsProtocol?,
+                             configuration: DCReaderConfiguration = DCReaderConfiguration()) -> DCReaderView {
         let viewModel = DCReaderViewModel(
             book: book,
             spineIndex: spineIndex,
             initialCoords: initialCoords,
-            userPreferencesProtocol: userPreferences,
-            delegate: delegate
+            userPreferencesProtocol: configuration.defaults,
+            delegate: delegate,
+            configuration: configuration
         )
         DCFonts.registerAllFontsIfNeeded()
         let view = DCReaderView(viewModel: viewModel)

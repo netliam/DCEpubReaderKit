@@ -240,7 +240,7 @@ final class DCPageWebViewController: UIViewController {
         webView.navigationDelegate = self
         webView.scrollView.delegate = self
         webView.alpha = 0
-        webView.setLineFocus(enabled: userPreferences.getLineFocus(),
+        webView.setLineFocus(enabled: userPreferences.getLineFocus() && readerContext.configuration.showsLineGuide,
                              appearance: appearance,
                              style: userPreferences.getLineFocusStyle(),
                              textTrailingInset: DCReaderChrome.columnGap)
@@ -287,7 +287,8 @@ final class DCPageWebViewController: UIViewController {
         let html = DCChapterHTMLBuilder.html(pathtofile: chapterURL.path,
                                              userPreferences: userPreferences,
                                              appearance: appearance,
-                                             fixedLayout: readerContext.currentBook.isFixedLayout(spineIndex: spineIndex))
+                                             fixedLayout: readerContext.currentBook.isFixedLayout(spineIndex: spineIndex),
+                                             fonts: readerContext.configuration.fonts)
         webView.loadHTMLString(html, baseURL: chapterURL.deletingLastPathComponent())
     }
 
@@ -520,6 +521,7 @@ extension DCPageWebViewController {
 
     var currentBookId: String { readerContext.bookId }
     var currentBook: DCEpubBook? { readerContext.currentBook }
+    var configuration: DCReaderConfiguration { readerContext.configuration }
     var currentChapterId: String { chapterURL?.lastPathComponent ?? "" }
 }
 
@@ -563,6 +565,7 @@ private final class DCPageRouter: DCWebViewRouterProtocol {
     var currentChapterId: String { page?.currentChapterId ?? "" }
     var currentSpineIndex: Int { spineIndex }
     var currentBook: DCEpubBook? { page?.currentBook }
+    var configuration: DCReaderConfiguration { page?.configuration ?? DCReaderConfiguration() }
 }
 
 private extension String {

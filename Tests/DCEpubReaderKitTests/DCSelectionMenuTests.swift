@@ -430,15 +430,11 @@ struct DCNoteColorTests {
 
     @Test @MainActor func lastUsedColorIsRememberedAndStartsYellow() throws {
         let defaults = try #require(UserDefaults(suiteName: "DCNoteColorTests-\(UUID().uuidString)"))
-        let previous = DCHighlightStyle.store
-        DCHighlightStyle.store = defaults
-        defer { DCHighlightStyle.store = previous }
-
-        #expect(DCHighlightStyle.lastUsed == .yellow)
-        DCHighlightStyle.lastUsed = .purple
-        #expect(DCHighlightStyle.lastUsed == .purple)
-        DCHighlightStyle.lastUsed = .underline
-        #expect(DCHighlightStyle.lastUsed == .underline)
+        #expect(defaults.getLastHighlightStyle() == .yellow)
+        defaults.setLastHighlightStyle(.purple)
+        #expect(defaults.getLastHighlightStyle() == .purple)
+        defaults.setLastHighlightStyle(.underline)
+        #expect(defaults.getLastHighlightStyle() == .underline)
     }
 
     @Test func notesSavedAsUnderlinesKeepThem() {

@@ -24,6 +24,13 @@ final class DCReaderSettingsViewModel: ObservableObject {
 
     /// Whether the system is in dark mode, to preview the theme tiles in the palette that will be used.
     let systemIsDark: Bool
+    let configuration: DCReaderConfiguration
+    /// The reader's window, for brightness and whether rotation lock applies.
+    weak var windowScene: UIWindowScene?
+
+    var showsRotationLock: Bool {
+        configuration.showsRotationLock && DCReaderOrientationLock.isAvailable(in: windowScene)
+    }
     let userPreferences: DCUserPreferencesProtocol
 
     private let fontSizeRange: ClosedRange<CGFloat> = 0...7
@@ -40,7 +47,11 @@ final class DCReaderSettingsViewModel: ObservableObject {
          rotationLock: Binding<Bool>,
          themeColors: Binding<[String: DCThemeColors]>,
          systemIsDark: Bool,
-         userPreferences: DCUserPreferencesProtocol) {
+         userPreferences: DCUserPreferencesProtocol,
+         configuration: DCReaderConfiguration = DCReaderConfiguration(),
+         windowScene: UIWindowScene? = nil) {
+        self.configuration = configuration
+        self.windowScene = windowScene
         self._fontSize = fontSize
         self._textFont = textFont
         self._theme = theme
@@ -118,6 +129,11 @@ final class DCReaderSettingsViewModel: ObservableObject {
         textFont = font.rawValue
     }
 
+    func select(_ font: DCReaderFont) {
+        userPreferences.setValue(key: .fontFamily, type: font.storageKey)
+        textFont = font.storageKey
+    }
+
     func isSelected(_ font: DCFontFamily) -> Bool {
         // Older builds stored the display name rather than the raw value.
         textFont == font.rawValue || textFont == font.name
@@ -152,13 +168,13 @@ final class DCReaderSettingsViewModel: ObservableObject {
         let key = DCThemeColorStore.key(selectedTheme, isDark: current.isDark)
         guard themeColors[key] != colors else { return }
         themeColors[key] = colors
-        DCThemeColorStore.all = themeColors
+        userPreferences.setThemeColors(themeColors)
     }
 
     func resetThemeColors() {
         let key = DCThemeColorStore.key(selectedTheme, isDark: currentAppearance.isDark)
         themeColors[key] = nil
-        DCThemeColorStore.all = themeColors
+        userPreferences.setThemeColors(themeColors)
     }
 
     func setRotationLock(_ locked: Bool) {

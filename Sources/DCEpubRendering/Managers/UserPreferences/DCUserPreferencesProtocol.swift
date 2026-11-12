@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import DCEpubCore
 
 protocol DCUserPreferencesProtocol {
     func setValue(key: DCUserPreferences.CacheKey, type: Any)
@@ -22,6 +23,14 @@ protocol DCUserPreferencesProtocol {
     func getTextLayout() -> DCTextLayout
     /// Whether the reader keeps the orientation it was in.
     func getRotationLock() -> Bool
+    /// The stored font choice: a `DCFontFamily` raw value or a host font's `storageKey`.
+    func getFontChoice() -> String
+    /// Custom theme colors, keyed by `DCThemeColorStore.key`.
+    func getThemeColors() -> [String: DCThemeColors]
+    func setThemeColors(_ colors: [String: DCThemeColors])
+    /// The color last chosen for a highlight (yellow at first); Add Note uses it.
+    func getLastHighlightStyle() -> DCHighlightStyle
+    func setLastHighlightStyle(_ style: DCHighlightStyle)
 }
 
 extension UserDefaults: DCUserPreferencesProtocol {
@@ -119,11 +128,25 @@ extension UserDefaults: DCUserPreferencesProtocol {
     func getRotationLock() -> Bool {
         bool(forKey: DCUserPreferences.CacheKey.rotationLock.rawValue)
     }
-}
 
-extension DCUserPreferencesProtocol {
-    /// The appearance to render with, given whether the system is currently in dark mode.
-    func appearance(systemIsDark: Bool) -> DCReaderAppearance {
-        DCReaderAppearance.stored(theme: getTheme(), isDark: getFollowsSystemAppearance() && systemIsDark)
+    func getFontChoice() -> String {
+        string(forKey: DCUserPreferences.CacheKey.fontFamily.rawValue) ?? DCFontFamily.original.rawValue
+    }
+
+    func getThemeColors() -> [String: DCThemeColors] {
+        guard let data = data(forKey: DCUserPreferences.CacheKey.themeColors.rawValue) else { return [:] }
+        return (try? JSONDecoder().decode([String: DCThemeColors].self, from: data)) ?? [:]
+    }
+
+    func setThemeColors(_ colors: [String: DCThemeColors]) {
+        set(try? JSONEncoder().encode(colors), forKey: DCUserPreferences.CacheKey.themeColors.rawValue)
+    }
+
+    func getLastHighlightStyle() -> DCHighlightStyle {
+        string(forKey: DCUserPreferences.CacheKey.lastHighlightStyle.rawValue).flatMap(DCHighlightStyle.init(rawValue:)) ?? .yellow
+    }
+
+    func setLastHighlightStyle(_ style: DCHighlightStyle) {
+        set(style.rawValue, forKey: DCUserPreferences.CacheKey.lastHighlightStyle.rawValue)
     }
 }

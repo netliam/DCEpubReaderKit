@@ -16,7 +16,8 @@ enum DCChapterHTMLBuilder {
     static func html(pathtofile: String,
                      userPreferences: DCUserPreferencesProtocol,
                      appearance: DCReaderAppearance,
-                     fixedLayout: Bool = false) -> String {
+                     fixedLayout: Bool = false,
+                     fonts: [DCReaderFont] = []) -> String {
         #if SWIFT_PACKAGE
         let bundle = Bundle.module
         #else
@@ -37,13 +38,16 @@ enum DCChapterHTMLBuilder {
         let chapterURLLiteral = (try? JSONSerialization.data(withJSONObject: [chapterURL]))
             .flatMap { String(data: $0, encoding: .utf8) }
             .map { String($0.dropFirst().dropLast()) } ?? "\"\""
+        let fontChoice = userPreferences.getFontChoice()
+        // A host font: its rules are in the layout style; built-in fonts are classes on <html>.
+        let hostFont = fonts.first { $0.storageKey == fontChoice }
         let headInject =
         """
         <script>window.dcChapterURL = \(chapterURLLiteral); window.dcAllowSpreads = \(userPreferences.getTextLayout().allowsSpreads);</script>\n
         <link rel='stylesheet' type='text/css' href=\"\(style)\">\n
         <script type='text/javascript' src=\"\(utils)\"></script>\n
         \(themeStyle(for: appearance))\n
-        <style id="\(layoutStyleId)">\(userPreferences.getTextLayout().css)</style>\n
+        <style id="\(layoutStyleId)">\(userPreferences.getTextLayout().css)\n\(hostFont?.css ?? "")</style>\n
         <meta name='viewport'
             content='width=device-width,
             height=device-height,
@@ -60,7 +64,7 @@ enum DCChapterHTMLBuilder {
 
         htmlContent = htmlContent.replacingOccurrences(of: "</head>", with: headInject)
 
-        let fontName = userPreferences.getFontFamily().rawValue
+        let fontName = hostFont == nil ? userPreferences.getFontFamily().rawValue : ""
         let fontSize = userPreferences.getFontSize().rawValue
         let classAttr = "class=\"\(fontName) \(fontSize) theme-\(appearance.theme.rawValue) mediaOverlayStyle0\""
         if htmlContent.range(of: "<html class=") == nil {

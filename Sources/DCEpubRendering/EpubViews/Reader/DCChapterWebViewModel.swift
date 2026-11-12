@@ -79,6 +79,7 @@ extension DCChapterWebViewModel: DCWebViewRouterProtocol {
     var currentChapterId: String { chapterURL.lastPathComponent }
     var currentSpineIndex: Int { spineIndex }
     var currentBook: DCEpubBook? { readerContext.currentBook }
+    var configuration: DCReaderConfiguration { readerContext.configuration }
     var isFixedLayout: Bool { readerContext.currentBook.isFixedLayout(spineIndex: spineIndex) }
 
     func updateCurrentPage(target: Int?) {

@@ -45,6 +45,8 @@ public struct DCReaderView: View {
         .overlay(alignment: .bottom) {
             bottomChrome
         }
+        .background(DCWindowSceneReader { viewModel.windowScene = $0 })
+        .background(keyboardShortcuts)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         .sheet(isPresented: $viewModel.showSettings) {
@@ -129,6 +131,59 @@ public struct DCReaderView: View {
             .onAppear { [weak viewModel] in
                 viewModel?.registerChapterViewModel(view.viewModel, for: idx)
             }
+    }
+}
+
+// MARK: - Closing and keyboard
+
+extension DCReaderView {
+    /// Closes the reader: the host's `onClose` (its own window), or dismiss (pushed or presented).
+    func close() {
+        if let onClose = viewModel.configuration.onClose {
+            onClose()
+        } else {
+            dismiss()
+        }
+    }
+
+    /// ⌘F searches and Esc closes. Page turning keys are on the pager (`DCPagedReaderController`).
+    var keyboardShortcuts: some View {
+        ZStack {
+            if viewModel.configuration.showsSearch {
+                Button("") { viewModel.showSearch = true }
+                    .keyboardShortcut("f", modifiers: .command)
+            }
+            Button("") { close() }
+                .keyboardShortcut(.cancelAction)
+        }
+        .opacity(0)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Reports the window scene the reader is shown in, as it moves between windows.
+struct DCWindowSceneReader: UIViewRepresentable {
+    let onChange: (UIWindowScene?) -> Void
+
+    func makeUIView(context: Context) -> View {
+        let view = View()
+        view.onChange = onChange
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: View, context: Context) {
+        view.onChange = onChange
+    }
+
+    final class View: UIView {
+        var onChange: ((UIWindowScene?) -> Void)?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            onChange?(window?.windowScene)
+        }
     }
 }
 

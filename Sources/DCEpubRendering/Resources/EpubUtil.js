@@ -144,10 +144,11 @@
         return String(pageCount);
     }
 
-    // Two columns side by side on a wide, landscape page (a spread, like Books), when allowed.
+    // Two columns side by side (a spread, like Books) on a page wide enough for two comfortable
+    // columns, when allowed. By width, not orientation, so iPad and Mac windows switch as they resize.
+    const SPREAD_MIN_WIDTH = 800;
     function columnsPerPage() {
-        const w = window.innerWidth, h = window.innerHeight;
-        return (window.dcAllowSpreads && w > h && w >= 600) ? 2 : 1;
+        return (window.dcAllowSpreads && window.innerWidth >= SPREAD_MIN_WIDTH) ? 2 : 1;
     }
 
     function scrollToLastHorizontalPage() {

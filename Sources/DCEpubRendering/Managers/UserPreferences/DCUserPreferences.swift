@@ -26,5 +26,8 @@ enum DCUserPreferences {
         case allowSpreads
         case characterSpacing
         case wordSpacing
+        // Keys kept from when these were stored separately.
+        case themeColors = "DCThemeColors"
+        case lastHighlightStyle = "DCLastHighlightStyle"
     }
 }

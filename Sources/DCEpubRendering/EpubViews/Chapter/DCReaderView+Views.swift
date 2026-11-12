@@ -51,7 +51,7 @@ extension DCReaderView {
     private var topControls: some View {
         HStack(spacing: 12) {
             DCChromeButton(systemImage: "xmark", accessibilityLabel: "Close") {
-                dismiss()
+                close()
             }
             Spacer(minLength: 0)
             Text(viewModel.topStatusText)
@@ -86,10 +86,12 @@ extension DCReaderView {
     private var readerMenu: some View {
         Menu {
             ControlGroup {
-                Button {
-                    viewModel.toggleLineFocus()
-                } label: {
-                    Label("Line Guide", systemImage: "text.line.first.and.arrowtriangle.forward")
+                if viewModel.configuration.showsLineGuide {
+                    Button {
+                        viewModel.toggleLineFocus()
+                    } label: {
+                        Label("Line Guide", systemImage: "text.line.first.and.arrowtriangle.forward")
+                    }
                 }
                 Button {
                     Task { await viewModel.share() }
@@ -102,10 +104,12 @@ extension DCReaderView {
             } label: {
                 Label("Contents", systemImage: "list.bullet.rectangle.portrait")
             }
-            Button {
-                viewModel.showSearch = true
-            } label: {
-                Label("Search Book", systemImage: "magnifyingglass")
+            if viewModel.configuration.showsSearch {
+                Button {
+                    viewModel.showSearch = true
+                } label: {
+                    Label("Search Book", systemImage: "magnifyingglass")
+                }
             }
             Button {
                 viewModel.showSettings = true
@@ -171,7 +175,9 @@ extension DCReaderView {
             rotationLock: $viewModel.rotationLock,
             themeColors: $viewModel.themeColors,
             systemIsDark: viewModel.systemIsDark,
-            userPreferences: viewModel.userPreferences
+            userPreferences: viewModel.userPreferences,
+            configuration: viewModel.configuration,
+            windowScene: viewModel.windowScene
         )
         .presentationDetents([.height(DCReaderChrome.settingsSheetHeight), .large])
         .presentationDragIndicator(.visible)

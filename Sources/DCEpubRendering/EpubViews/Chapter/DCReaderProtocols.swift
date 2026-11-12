@@ -57,4 +57,9 @@ protocol DCChapterReaderContextProtocol: AnyObject {
     func save(highlight: DCHighlight) async
     func deleteHighlight(uuid: String) async
     func highlights(for chapterId: String) async -> [DCHighlight]
+    var configuration: DCReaderConfiguration { get }
+}
+
+extension DCChapterReaderContextProtocol {
+    var configuration: DCReaderConfiguration { DCReaderConfiguration() }
 }

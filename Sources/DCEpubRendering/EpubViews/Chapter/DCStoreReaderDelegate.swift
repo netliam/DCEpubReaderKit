@@ -28,9 +28,17 @@ public final class DCStoreReaderDelegate: DCReaderCoordsProtocol {
     public typealias Store = DCHighlightStoreProtocol & DCReadingPositionStoreProtocol
 
     public let store: any Store
+    /// The key records are stored under; `nil` uses the book's OPF identifier. Pass the same value
+    /// as `DCReaderConfiguration.bookId`.
+    public let bookId: String?
 
-    public init(store: any Store) {
+    public init(store: any Store, bookId: String? = nil) {
         self.store = store
+        self.bookId = bookId
+    }
+
+    private func key(for book: DCEpubBook) -> String {
+        bookId ?? book.uniqueIdentifier
     }
 
     public func handleCoords(book: DCEpubBook,
@@ -41,7 +49,7 @@ public final class DCStoreReaderDelegate: DCReaderCoordsProtocol {
         // The reader saves bookmarks itself (as `.bookMark` highlights); only positions are stored here.
         guard !isBookMark else { return }
         let chapterId = (chapterURL ?? book.chapterURL(forSpineIndex: spineIndex))?.lastPathComponent ?? ""
-        let position = DCReadingPosition(bookId: book.uniqueIdentifier,
+        let position = DCReadingPosition(bookId: key(for: book),
                                          spineIndex: spineIndex,
                                          coords: coords,
                                          chapterId: chapterId)
@@ -59,10 +67,10 @@ public final class DCStoreReaderDelegate: DCReaderCoordsProtocol {
     }
 
     public func highlights(for book: DCEpubBook) async -> [DCHighlight]? {
-        await store.highlights(bookId: book.uniqueIdentifier)
+        await store.highlights(bookId: key(for: book))
     }
 
     public func highlights(for book: DCEpubBook, chapterId: String) async -> [DCHighlight]? {
-        await store.highlights(bookId: book.uniqueIdentifier, chapterId: chapterId)
+        await store.highlights(bookId: key(for: book), chapterId: chapterId)
     }
 }

@@ -20,10 +20,11 @@ struct DCReaderSettingsView: View {
 
     @ObservedObject var viewModel: DCReaderSettingsViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var brightness: CGFloat = DCScreenBrightness.value
+    @State private var brightness: CGFloat
 
     init(viewModel: DCReaderSettingsViewModel) {
         self.viewModel = viewModel
+        _brightness = State(initialValue: DCScreenBrightness.value(of: viewModel.windowScene))
     }
 
     var body: some View {
@@ -35,7 +36,9 @@ struct DCReaderSettingsView: View {
                     textSizeControl
                     toggleControls
                 }
-                brightnessSlider
+                if viewModel.configuration.showsBrightness {
+                    brightnessSlider
+                }
                 themeGrid
                 NavigationLink {
                     DCReaderCustomizeView(viewModel: viewModel)
@@ -110,16 +113,18 @@ struct DCReaderSettingsView: View {
             .accessibilityLabel(viewModel.isScrolling ? "Scrolling" : "Pages")
             .accessibilityHint("Switches between turning pages and scrolling")
 
-            Button {
-                viewModel.setRotationLock(!viewModel.rotationLock)
-            } label: {
-                Image(systemName: viewModel.rotationLock ? "lock.rotation" : "lock.open.rotation")
-                    .font(.system(size: 18, weight: .medium))
-                    .frame(maxWidth: .infinity, minHeight: Constants.controlHeight)
-                    .foregroundStyle(viewModel.rotationLock ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+            if viewModel.showsRotationLock {
+                Button {
+                    viewModel.setRotationLock(!viewModel.rotationLock)
+                } label: {
+                    Image(systemName: viewModel.rotationLock ? "lock.rotation" : "lock.open.rotation")
+                        .font(.system(size: 18, weight: .medium))
+                        .frame(maxWidth: .infinity, minHeight: Constants.controlHeight)
+                        .foregroundStyle(viewModel.rotationLock ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+                }
+                .accessibilityLabel("Rotation Lock")
+                .accessibilityValue(viewModel.rotationLock ? "On" : "Off")
             }
-            .accessibilityLabel("Rotation Lock")
-            .accessibilityValue(viewModel.rotationLock ? "On" : "Off")
 
             Button {
                 viewModel.toggleFollowsSystemAppearance()
@@ -143,7 +148,7 @@ struct DCReaderSettingsView: View {
             Slider(value: $brightness, in: 0...1)
                 .accessibilityLabel("Brightness")
                 .onChange(of: brightness) { newValue in
-                    DCScreenBrightness.value = newValue
+                    DCScreenBrightness.set(newValue, on: viewModel.windowScene)
                 }
             Image(systemName: "sun.max")
                 .accessibilityHidden(true)
@@ -215,6 +220,23 @@ struct DCReaderCustomizeView: View {
                     .tint(.primary)
                     .accessibilityAddTraits(viewModel.isSelected(font) ? .isSelected : [])
                 }
+                ForEach(viewModel.configuration.fonts, id: \.name) { font in
+                    Button {
+                        viewModel.select(font)
+                    } label: {
+                        HStack {
+                            Text(font.name)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if viewModel.textFont == font.storageKey {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                    }
+                    .tint(.primary)
+                    .accessibilityAddTraits(viewModel.textFont == font.storageKey ? .isSelected : [])
+                }
             }
 
             Section("Text") {
@@ -270,17 +292,19 @@ struct DCReaderCustomizeView: View {
                     get: { viewModel.isScrolling },
                     set: { viewModel.setScrolling($0) }
                 ))
-                Toggle("Lock Rotation", isOn: Binding(
-                    get: { viewModel.rotationLock },
-                    set: { viewModel.setRotationLock($0) }
-                ))
+                if viewModel.showsRotationLock {
+                    Toggle("Lock Rotation", isOn: Binding(
+                        get: { viewModel.rotationLock },
+                        set: { viewModel.setRotationLock($0) }
+                    ))
+                }
                 if !viewModel.isScrolling {
                     Toggle("Allow Multiple Columns", isOn: Binding(
                         get: { viewModel.textLayout.allowsSpreads },
                         set: { viewModel.setAllowsSpreads($0) }
                     ))
                 }
-                if !viewModel.isScrolling {
+                if !viewModel.isScrolling && viewModel.configuration.allowsPageCurl {
                     Picker("Page Turn", selection: Binding(
                         get: { viewModel.selectedTransition },
                         set: { viewModel.select($0) }
@@ -292,23 +316,25 @@ struct DCReaderCustomizeView: View {
                 }
             }
 
-            Section {
-                Toggle("Line Guide", isOn: Binding(
-                    get: { viewModel.lineFocus },
-                    set: { viewModel.setLineFocus($0) }
-                ))
-                Picker("Style", selection: Binding(
-                    get: { viewModel.selectedLineFocusStyle },
-                    set: { viewModel.select($0) }
-                )) {
-                    ForEach(DCLineFocusStyle.allCases, id: \.self) { style in
-                        Text(style.name).tag(style)
+            if viewModel.configuration.showsLineGuide {
+                Section {
+                    Toggle("Line Guide", isOn: Binding(
+                        get: { viewModel.lineFocus },
+                        set: { viewModel.setLineFocus($0) }
+                    ))
+                    Picker("Style", selection: Binding(
+                        get: { viewModel.selectedLineFocusStyle },
+                        set: { viewModel.select($0) }
+                    )) {
+                        ForEach(DCLineFocusStyle.allCases, id: \.self) { style in
+                            Text(style.name).tag(style)
+                        }
                     }
+                } header: {
+                    Text("Line Guide")
+                } footer: {
+                    Text("Keeps the line you're reading prominent by dimming or blurring the rest. Tap a line to focus it; tap it again to move to the next.")
                 }
-            } header: {
-                Text("Line Guide")
-            } footer: {
-                Text("Keeps the line you're reading prominent by dimming or blurring the rest. Tap a line to focus it; tap it again to move to the next.")
             }
         }
         .scrollContentBackground(.hidden)
@@ -353,19 +379,15 @@ struct DCClearNavigationBackground: ViewModifier {
 
 // MARK: - Brightness
 
-/// Screen brightness of the active window scene.
+/// Brightness of the screen the reader's window is on.
 @MainActor
 enum DCScreenBrightness {
-    private static var screen: UIScreen? {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first { $0.activationState == .foregroundActive }?
-            .screen
+    static func value(of scene: UIWindowScene?) -> CGFloat {
+        scene?.screen.brightness ?? 0.5
     }
 
-    static var value: CGFloat {
-        get { screen?.brightness ?? 0.5 }
-        set { screen?.brightness = newValue }
+    static func set(_ value: CGFloat, on scene: UIWindowScene?) {
+        scene?.screen.brightness = value
     }
 }
 
