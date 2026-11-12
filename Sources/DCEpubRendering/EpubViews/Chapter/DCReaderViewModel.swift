@@ -14,6 +14,8 @@ final class DCReaderViewModel: ObservableObject {
     // MARK: Config values
     @Published var textSize: CGFloat
     @Published var textFont: String
+    /// Line spacing, margins and justification.
+    @Published var textLayout: DCTextLayout
     @Published var theme: String
     @Published var followsSystemAppearance: Bool
     /// Mirrors the system appearance (set by the view from its color scheme).
@@ -105,6 +107,7 @@ final class DCReaderViewModel: ObservableObject {
         self.previousSelection = spineIndex
         self.textSize = userPreferencesProtocol.getFontSize().size
         self.textFont = userPreferencesProtocol.getFontFamily().name
+        self.textLayout = userPreferencesProtocol.getTextLayout()
         self.theme = userPreferencesProtocol.getTheme().rawValue
         self.followsSystemAppearance = userPreferencesProtocol.getFollowsSystemAppearance()
         self.orientation = userPreferencesProtocol.getBookOrientation().rawValue
@@ -149,7 +152,7 @@ final class DCReaderViewModel: ObservableObject {
     }
 
     func readerConfigId(for idx: Int) -> String {
-        "\(idx)-\(textFont)-\(appearance.theme.fontWeight)-\(textSize)-\(orientation)-\(lineFocus)-\(lineFocusStyle)"
+        "\(idx)-\(textFont)-\(appearance.theme.fontWeight)-\(textSize)-\(textLayout.id)-\(orientation)-\(lineFocus)-\(lineFocusStyle)"
     }
 
     func initialCoords(for idx: Int) -> String? {
@@ -397,7 +400,7 @@ final class DCReaderViewModel: ObservableObject {
     /// Line focus and theme colors aren't among them: they are applied to the pages on screen.
     /// Only the theme's font weight (Bold) changes the layout.
     var pagedConfigId: String {
-        "\(textFont)-\(appearance.theme.fontWeight)-\(textSize)-\(pageTransition)"
+        "\(textFont)-\(appearance.theme.fontWeight)-\(textSize)-\(textLayout.id)-\(pageTransition)"
     }
 
     /// Coords to open `spineIndex` at: the last reported position, else the initial coords.
@@ -473,7 +476,7 @@ final class DCReaderViewModel: ObservableObject {
         case let .pageLayout(size):
             pendingLayout = DCBookPaginator.Layout(pageSize: size,
                                                    isVertical: !isPagedMode,
-                                                   styleId: "\(textFont)-\(textSize)-\(appearance.theme.fontWeight)")
+                                                   styleId: "\(textFont)-\(textSize)-\(appearance.theme.fontWeight)-\(textLayout.id)")
             startCountingIfReady()
         }
     }

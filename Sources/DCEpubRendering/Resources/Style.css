@@ -208,10 +208,10 @@ html [data-dc-note]::after {
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 1h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7.5L4 15v-3H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
+/* No padding past the text: a highlight starting a line of the next page would show its edge at
+   the right of this one, since pages are columns side by side. */
 html .highlight-yellow, html .highlight-green, html .highlight-blue, html .highlight_search, html .highlight-pink, html .highlight-purple, span.epub-media-overlay-playing {
     border-radius: 3px;
-    padding: 0 2px;
-    margin: 0 -2px;
 }
 
 /* default media overlay style */

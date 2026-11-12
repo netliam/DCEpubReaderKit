@@ -17,6 +17,7 @@ final class DCReaderSettingsViewBuilder {
                pageTransition: Binding<String>,
                lineFocus: Binding<Bool>,
                lineFocusStyle: Binding<String>,
+               textLayout: Binding<DCTextLayout>,
                systemIsDark: Bool,
                userPreferences: DCUserPreferencesProtocol) -> DCReaderSettingsView {
         let viewModel = DCReaderSettingsViewModel(fontSize: fontSize,
@@ -27,6 +28,7 @@ final class DCReaderSettingsViewBuilder {
                                                   pageTransition: pageTransition,
                                                   lineFocus: lineFocus,
                                                   lineFocusStyle: lineFocusStyle,
+                                                  textLayout: textLayout,
                                                   systemIsDark: systemIsDark,
                                                   userPreferences: userPreferences)
         return DCReaderSettingsView(viewModel: viewModel)

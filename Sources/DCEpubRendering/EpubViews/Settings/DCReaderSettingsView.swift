@@ -204,6 +204,29 @@ struct DCReaderCustomizeView: View {
                 }
             }
 
+            Section("Text") {
+                Picker("Line Spacing", selection: Binding(
+                    get: { viewModel.textLayout.lineSpacing },
+                    set: { viewModel.select($0) }
+                )) {
+                    ForEach(DCLineSpacing.allCases, id: \.self) { spacing in
+                        Text(spacing.name).tag(spacing)
+                    }
+                }
+                Picker("Margins", selection: Binding(
+                    get: { viewModel.textLayout.margins },
+                    set: { viewModel.select($0) }
+                )) {
+                    ForEach(DCPageMargins.allCases, id: \.self) { margins in
+                        Text(margins.name).tag(margins)
+                    }
+                }
+                Toggle("Justify Text", isOn: Binding(
+                    get: { viewModel.textLayout.justified },
+                    set: { viewModel.setJustified($0) }
+                ))
+            }
+
             Section("Layout") {
                 Toggle("Scrolling", isOn: Binding(
                     get: { viewModel.isScrolling },
@@ -290,6 +313,7 @@ enum DCScreenBrightness {
         pageTransition: .constant(DCPageTransition.curl.rawValue),
         lineFocus: .constant(false),
         lineFocusStyle: .constant(DCLineFocusStyle.guide.rawValue),
+        textLayout: .constant(DCTextLayout()),
         systemIsDark: true,
         userPreferences: DCUserPreferencesMock()
     )

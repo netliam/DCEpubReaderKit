@@ -166,6 +166,7 @@ extension DCReaderView {
             pageTransition: $viewModel.pageTransition,
             lineFocus: $viewModel.lineFocus,
             lineFocusStyle: $viewModel.lineFocusStyle,
+            textLayout: $viewModel.textLayout,
             systemIsDark: viewModel.systemIsDark,
             userPreferences: viewModel.userPreferences
         )

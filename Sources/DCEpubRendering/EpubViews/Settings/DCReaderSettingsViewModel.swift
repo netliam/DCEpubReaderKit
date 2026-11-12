@@ -18,6 +18,7 @@ final class DCReaderSettingsViewModel: ObservableObject {
     @Binding var pageTransition: String
     @Binding var lineFocus: Bool
     @Binding var lineFocusStyle: String
+    @Binding var textLayout: DCTextLayout
 
     /// Whether the system is in dark mode, to preview the theme tiles in the palette that will be used.
     let systemIsDark: Bool
@@ -33,6 +34,7 @@ final class DCReaderSettingsViewModel: ObservableObject {
          pageTransition: Binding<String>,
          lineFocus: Binding<Bool>,
          lineFocusStyle: Binding<String>,
+         textLayout: Binding<DCTextLayout>,
          systemIsDark: Bool,
          userPreferences: DCUserPreferencesProtocol) {
         self._fontSize = fontSize
@@ -43,6 +45,7 @@ final class DCReaderSettingsViewModel: ObservableObject {
         self._pageTransition = pageTransition
         self._lineFocus = lineFocus
         self._lineFocusStyle = lineFocusStyle
+        self._textLayout = textLayout
         self.systemIsDark = systemIsDark
         self.userPreferences = userPreferences
     }
@@ -119,6 +122,23 @@ final class DCReaderSettingsViewModel: ObservableObject {
 
     var selectedLineFocusStyle: DCLineFocusStyle {
         DCLineFocusStyle(rawValue: lineFocusStyle) ?? .guide
+    }
+
+    // MARK: Text layout
+
+    func select(_ spacing: DCLineSpacing) {
+        userPreferences.setValue(key: .lineSpacing, type: spacing.rawValue)
+        textLayout.lineSpacing = spacing
+    }
+
+    func select(_ margins: DCPageMargins) {
+        userPreferences.setValue(key: .pageMargins, type: margins.rawValue)
+        textLayout.margins = margins
+    }
+
+    func setJustified(_ justified: Bool) {
+        userPreferences.setValue(key: .justifyText, type: justified)
+        textLayout.justified = justified
     }
 
     func select(_ style: DCLineFocusStyle) {

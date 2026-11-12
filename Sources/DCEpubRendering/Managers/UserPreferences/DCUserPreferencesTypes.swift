@@ -242,3 +242,90 @@ enum DCPageTransition: String {
         .slide
     ]
 }
+
+// MARK: - Text layout
+
+/// Line spacing, a setting in Books' Customize. `original` keeps the book's own.
+enum DCLineSpacing: String, CaseIterable, Sendable {
+    case original
+    case tight
+    case normal
+    case relaxed
+    case loose
+
+    var name: String {
+        switch self {
+        case .original: "Original"
+        case .tight: "Tight"
+        case .normal: "Normal"
+        case .relaxed: "Relaxed"
+        case .loose: "Loose"
+        }
+    }
+
+    /// The `line-height` applied to the text, or `nil` to keep the book's.
+    var lineHeight: Double? {
+        switch self {
+        case .original: nil
+        case .tight: 1.3
+        case .normal: 1.5
+        case .relaxed: 1.75
+        case .loose: 2
+        }
+    }
+}
+
+/// Page margins at the left and right of the text.
+enum DCPageMargins: String, CaseIterable, Sendable {
+    case narrow
+    case normal
+    case wide
+
+    var name: String {
+        switch self {
+        case .narrow: "Narrow"
+        case .normal: "Normal"
+        case .wide: "Wide"
+        }
+    }
+
+    /// Space between the screen edge (inside the safe area) and the text.
+    var inset: CGFloat {
+        switch self {
+        case .narrow: 12
+        case .normal: DCReaderChrome.horizontalInset
+        case .wide: 44
+        }
+    }
+}
+
+/// Line spacing, margins and justification: settings that change where text falls on the page,
+/// so changing one lays the book out again.
+struct DCTextLayout: Equatable, Sendable {
+    var lineSpacing: DCLineSpacing = .original
+    var margins: DCPageMargins = .normal
+    /// Justified, like the reader has always been; off aligns text to the start of the line.
+    var justified: Bool = true
+
+    /// Part of the layout ids that decide when pages are counted and laid out again.
+    var id: String {
+        "\(lineSpacing.rawValue)-\(margins.rawValue)-\(justified ? "justified" : "ragged")"
+    }
+
+    /// The CSS that applies it (margins are native insets around the web view).
+    var css: String {
+        var rules: [String] = []
+        if let lineHeight = lineSpacing.lineHeight {
+            // Headings keep a tighter spacing, as books set them.
+            rules.append("html body, html body :where(p, div, li, blockquote, dd, dt, td, span) { line-height: \(lineHeight) !important; }")
+            rules.append("html body :where(h1, h2, h3, h4, h5, h6) { line-height: 1.25 !important; }")
+        }
+        if !justified {
+            // Pagination sets `text-align: justify` inline on <body>; !important wins over it, and
+            // paragraphs inherit it. A book's own centered or right-aligned text keeps its alignment.
+            rules.append("html body { text-align: start !important; }")
+            rules.append("html body [style*='justify'] { text-align: start !important; }")
+        }
+        return rules.joined(separator: "\n")
+    }
+}

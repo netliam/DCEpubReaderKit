@@ -183,11 +183,12 @@ final class DCPageWebViewController: UIViewController {
         view.addSubview(messageLabel)
 
         let guide = view.safeAreaLayoutGuide
+        let margin = userPreferences.getTextLayout().margins.inset
         NSLayoutConstraint.activate([
             webView.topAnchor.constraint(equalTo: guide.topAnchor, constant: DCReaderChrome.topInset),
-            webView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: DCReaderChrome.horizontalInset),
+            webView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: margin),
             webView.trailingAnchor.constraint(equalTo: guide.trailingAnchor,
-                                              constant: -DCReaderChrome.horizontalInset + DCReaderChrome.columnGap),
+                                              constant: -margin + DCReaderChrome.columnGap),
             webView.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -DCReaderChrome.bottomInset),
 
             messageLabel.centerYAnchor.constraint(equalTo: guide.centerYAnchor),

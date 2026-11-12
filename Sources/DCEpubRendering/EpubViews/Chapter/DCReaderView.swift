@@ -96,7 +96,7 @@ public struct DCReaderView: View {
                 Group {
                     if let chapterURL = viewModel.chapterURL(for: idx) {
                         chapterView(chapterURL, idx: idx)
-                            .padding(.horizontal, DCReaderChrome.horizontalInset)
+                            .padding(.horizontal, viewModel.textLayout.margins.inset)
                             .padding(.top, DCReaderChrome.topInset)
                             .padding(.bottom, DCReaderChrome.bottomInset)
                             .id(viewModel.readerConfigId(for: idx))

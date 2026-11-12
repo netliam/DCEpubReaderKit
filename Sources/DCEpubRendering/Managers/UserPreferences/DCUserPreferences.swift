@@ -18,6 +18,9 @@ final class DCUserPreferences: DCUserPreferencesProtocol {
         case pageTransition
         case lineFocus
         case lineFocusStyle
+        case lineSpacing
+        case pageMargins
+        case justifyText
     }
 
     private let userPreferences: DCUserPreferencesProtocol
@@ -60,5 +63,9 @@ final class DCUserPreferences: DCUserPreferencesProtocol {
 
     func getLineFocusStyle() -> DCLineFocusStyle {
         userPreferences.getLineFocusStyle()
+    }
+
+    func getTextLayout() -> DCTextLayout {
+        userPreferences.getTextLayout()
     }
 }

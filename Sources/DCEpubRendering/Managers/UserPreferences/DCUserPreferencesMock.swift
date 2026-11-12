@@ -10,6 +10,7 @@ import Foundation
 final class DCUserPreferencesMock: DCUserPreferencesProtocol {
     var lineFocus = false
     var lineFocusStyle: DCLineFocusStyle = .guide
+    var textLayout = DCTextLayout()
 
     func setValue(key: DCUserPreferences.CacheKey, type: Any) {}
     func getFontSize() -> DCFontSize {
@@ -42,5 +43,9 @@ final class DCUserPreferencesMock: DCUserPreferencesProtocol {
 
     func getLineFocusStyle() -> DCLineFocusStyle {
         lineFocusStyle
+    }
+
+    func getTextLayout() -> DCTextLayout {
+        textLayout
     }
 }

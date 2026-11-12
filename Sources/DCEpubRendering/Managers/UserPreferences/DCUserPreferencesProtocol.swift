@@ -18,6 +18,8 @@ protocol DCUserPreferencesProtocol {
     func getPageTransition() -> DCPageTransition
     func getLineFocus() -> Bool
     func getLineFocusStyle() -> DCLineFocusStyle
+    /// Line spacing, margins and justification.
+    func getTextLayout() -> DCTextLayout
 }
 
 extension UserDefaults: DCUserPreferencesProtocol {
@@ -108,6 +110,20 @@ extension UserDefaults: DCUserPreferencesProtocol {
 
     func getLineFocusStyle() -> DCLineFocusStyle {
         string(forKey: DCUserPreferences.CacheKey.lineFocusStyle.rawValue).flatMap(DCLineFocusStyle.init(rawValue:)) ?? .guide
+    }
+
+    func getTextLayout() -> DCTextLayout {
+        typealias Key = DCUserPreferences.CacheKey
+        var layout = DCTextLayout()
+        if let spacing = string(forKey: Key.lineSpacing.rawValue).flatMap(DCLineSpacing.init(rawValue:)) {
+            layout.lineSpacing = spacing
+        }
+        if let margins = string(forKey: Key.pageMargins.rawValue).flatMap(DCPageMargins.init(rawValue:)) {
+            layout.margins = margins
+        }
+        // Justified unless turned off.
+        layout.justified = object(forKey: Key.justifyText.rawValue) as? Bool ?? true
+        return layout
     }
 }
 

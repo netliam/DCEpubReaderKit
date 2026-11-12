@@ -40,6 +40,7 @@ enum DCChapterHTMLBuilder {
         <script type='text/javascript' src=\"\(jqueryhighlight)\"></script>\n
         <script type='text/javascript' src=\"\(utils)\"></script>\n
         \(themeStyle(for: appearance))\n
+        <style id="\(layoutStyleId)">\(userPreferences.getTextLayout().css)</style>\n
         <meta name='viewport'
             content='width=device-width,
             height=device-height,
@@ -59,6 +60,9 @@ enum DCChapterHTMLBuilder {
         }
         return htmlContent
     }
+
+    /// Id of the injected line spacing and justification `<style>`.
+    static let layoutStyleId = "dc-layout"
 
     /// Id of the injected theme `<style>`, so a loaded page can switch theme without reloading.
     static let themeStyleId = "dc-theme"
