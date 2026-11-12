@@ -14,16 +14,9 @@ struct DCMarksView: View {
 
     var body: some View {
         List {
-            if viewModel.types.count > 1 {
-                Picker("Filter", selection: $viewModel.selectedType) {
-                    ForEach(viewModel.types, id: \.self) { type in
-                        Text(title(for: type)).tag(type)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
+            filterBar
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 .listRowBackground(Color.clear)
-            }
 
             if viewModel.filteredHighlights.isEmpty {
                 emptyState
@@ -45,14 +38,87 @@ struct DCMarksView: View {
         }
     }
 
+    /// Filter chips (highlights only) and the sort menu.
+    private var filterBar: some View {
+        HStack(spacing: 8) {
+            if viewModel.showsFilters {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(viewModel.availableFilters, id: \.self) { filter in
+                            filterChip(filter)
+                        }
+                    }
+                }
+            } else {
+                Spacer(minLength: 0)
+            }
+            Menu {
+                Picker("Sort By", selection: $viewModel.sort) {
+                    ForEach(DCMarksViewModel.Sort.allCases, id: \.self) { sort in
+                        Text(sort.title).tag(sort)
+                    }
+                }
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Sort By")
+            .accessibilityValue(viewModel.sort.title)
+        }
+    }
+
+    private func filterChip(_ filter: DCMarksViewModel.Filter) -> some View {
+        let isSelected = viewModel.filter == filter
+        return Button {
+            viewModel.filter = filter
+        } label: {
+            Group {
+                switch filter {
+                case .all:
+                    Text("All")
+                case .notes:
+                    Label("Notes", systemImage: "note.text")
+                case .style(let style):
+                    if let swatch = style.swatchColor {
+                        Circle()
+                            .fill(Color(uiColor: swatch))
+                            .frame(width: 16, height: 16)
+                    } else {
+                        Image(systemName: "underline")
+                    }
+                }
+            }
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .background(isSelected ? Color.primary.opacity(0.15) : Color.primary.opacity(0.05), in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(isSelected ? 0.4 : 0), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel(for: filter))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func accessibilityLabel(for filter: DCMarksViewModel.Filter) -> String {
+        switch filter {
+        case .all: "All"
+        case .notes: "Notes"
+        case .style(let style): style.menuTitle
+        }
+    }
+
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: iconName(for: viewModel.selectedType))
+            Image(systemName: iconName(for: viewModel.primaryType))
                 .font(.system(size: 28))
                 .foregroundStyle(.secondary)
-            Text("No marks")
+            Text(viewModel.filter == .all ? "No marks" : "No matches")
                 .font(.headline)
-            Text(emptyMessage(for: viewModel.selectedType))
+            Text(viewModel.filter == .all
+                 ? emptyMessage(for: viewModel.primaryType)
+                 : "Nothing in this book matches this filter.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -64,7 +130,7 @@ struct DCMarksView: View {
     private func markRow(_ highlight: DCHighlight) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: iconName(for: highlight.type))
+                Image(systemName: highlight.hasNote ? "note.text" : iconName(for: highlight.type))
                     .foregroundStyle(iconColor(for: highlight))
                     .frame(width: 18)
 
@@ -94,13 +160,16 @@ struct DCMarksView: View {
         .contentShape(Rectangle())
     }
 
-    /// Highlights show their color; notes and bookmarks stay neutral.
+    /// Highlights and notes show their color; underlines and bookmarks stay neutral.
     private func iconColor(for highlight: DCHighlight) -> Color {
-        guard highlight.type == .highlight, let swatch = highlight.displayStyle.swatchColor else { return .secondary }
+        guard highlight.type != .bookMark, let swatch = highlight.displayStyle.swatchColor else { return .secondary }
         return Color(uiColor: swatch)
     }
 
     private func primaryText(for highlight: DCHighlight) -> String {
+        if highlight.type != .bookMark, highlight.hasNote {
+            return highlight.note
+        }
         switch highlight.type {
         case .highlight:
             return highlight.text
@@ -113,6 +182,9 @@ struct DCMarksView: View {
 
     private func secondaryText(for highlight: DCHighlight) -> String {
         let chapterText = highlight.chapterTitle.isEmpty ? highlight.chapterId : highlight.chapterTitle
+        if highlight.type != .bookMark, highlight.hasNote {
+            return highlight.text.isEmpty ? chapterText : "\(chapterText) · \(highlight.text)"
+        }
 
         switch highlight.type {
         case .highlight:
@@ -124,17 +196,6 @@ struct DCMarksView: View {
             return highlight.text.isEmpty ? chapterText : "\(chapterText) · \(highlight.text)"
         case .bookMark:
             return chapterText
-        }
-    }
-
-    private func title(for type: DCHighlight.MarkType) -> String {
-        switch type {
-        case .highlight:
-            return "Highlight"
-        case .note:
-            return "Note"
-        case .bookMark:
-            return "Bookmark"
         }
     }
 
