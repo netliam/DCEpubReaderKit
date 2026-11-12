@@ -44,6 +44,8 @@ enum DCChapterJump: Equatable {
     case search(query: String, occurrence: Int)
     /// The element with this id, from a table-of-contents link.
     case fragment(String)
+    /// A page (0-based) of the chapter, from the progress scrubber.
+    case page(Int)
 }
 
 @MainActor

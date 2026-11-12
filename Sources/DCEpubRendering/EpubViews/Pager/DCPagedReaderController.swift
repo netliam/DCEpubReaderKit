@@ -14,6 +14,8 @@ protocol DCPagedReaderNavigating: AnyObject {
     func show(spineIndex: Int, coords: String?)
     func show(spineIndex: Int, searchQuery: String, occurrence: Int)
     func show(spineIndex: Int, fragment: String?)
+    /// Shows a page (0-based) of a chapter, clamped to the chapter's pages.
+    func show(spineIndex: Int, page: Int)
     /// Text the reader has selected on the current page, if any.
     func selectedText() async -> String?
     /// Page (0-based, in its chapter) that a saved position falls on, using the page on screen.
@@ -459,6 +461,11 @@ extension DCPagedReaderController: DCPagedReaderNavigating {
     func show(spineIndex: Int, fragment: String?) {
         reloadTask?.cancel()
         rebuild(spineIndex: spineIndex, target: fragment.map { .fragment($0) } ?? .index(0))
+    }
+
+    func show(spineIndex: Int, page: Int) {
+        reloadTask?.cancel()
+        rebuild(spineIndex: spineIndex, target: .index(max(0, page)))
     }
 
     func selectedText() async -> String? {

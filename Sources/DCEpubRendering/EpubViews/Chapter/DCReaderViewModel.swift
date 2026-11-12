@@ -215,6 +215,88 @@ final class DCReaderViewModel: ObservableObject {
         return (0..<spineIndex).reduce(1) { $0 + (counts[$1] ?? 0) }
     }
 
+    // MARK: Scrubber
+
+    /// Where the progress scrubber points: a page of a chapter, and the whole-book page once counted.
+    struct ScrubTarget: Equatable {
+        let spineIndex: Int
+        /// 0-based, in the chapter.
+        let pageIndex: Int
+        let bookPage: Int?
+        let bookTotal: Int?
+    }
+
+    /// The page at `fraction` (0...1) of the book. Until every chapter is counted, the scrubber
+    /// moves by chapter, to the start of each.
+    nonisolated static func scrubTarget(fraction: Double, counts: [Int: Int]?, chapterCount: Int) -> ScrubTarget {
+        let fraction = min(max(fraction, 0), 1)
+        let lastChapter = max(chapterCount - 1, 0)
+        let total = counts.map { counts in (0..<chapterCount).reduce(0) { $0 + max(counts[$1] ?? 0, 0) } } ?? 0
+        guard let counts, total > 0 else {
+            let spineIndex = min(Int(fraction * Double(chapterCount)), lastChapter)
+            return ScrubTarget(spineIndex: spineIndex, pageIndex: 0, bookPage: nil, bookTotal: nil)
+        }
+        let page = 1 + Int((fraction * Double(total - 1)).rounded())
+        var remaining = page
+        for index in 0..<chapterCount {
+            let pages = max(counts[index] ?? 0, 0)
+            if remaining <= pages {
+                return ScrubTarget(spineIndex: index, pageIndex: remaining - 1, bookPage: page, bookTotal: total)
+            }
+            remaining -= pages
+        }
+        return ScrubTarget(spineIndex: lastChapter, pageIndex: max((counts[lastChapter] ?? 1) - 1, 0),
+                           bookPage: total, bookTotal: total)
+    }
+
+    /// The scrubber's position for the page on screen; `scrubTarget` maps it back to this page.
+    var scrubberFraction: Double {
+        if let position = bookPagePosition {
+            return position.total > 1 ? Double(position.page - 1) / Double(position.total - 1) : 0
+        }
+        return readingProgress
+    }
+
+    func scrubTarget(at fraction: Double) -> ScrubTarget {
+        Self.scrubTarget(fraction: fraction,
+                         counts: Self.estimatedPageCounts(current: bookPageCounts,
+                                                          previous: lastCompleteBookPageCounts,
+                                                          chapterCount: book.spine.count,
+                                                          currentChapter: (currentSelection, totalPages)),
+                         chapterCount: book.spine.count)
+    }
+
+    /// The chapter title shown above the scrubber while dragging.
+    func scrubTitle(for target: ScrubTarget) -> String {
+        book.chapterTitle(forSpineIndex: target.spineIndex) ?? "Chapter \(target.spineIndex + 1)"
+    }
+
+    /// "Page 415 of 832", or the chapter while the book is still being counted.
+    func scrubDetail(for target: ScrubTarget) -> String {
+        if let page = target.bookPage, let total = target.bookTotal {
+            return "Page \(page) of \(total)"
+        }
+        return "Chapter \(target.spineIndex + 1) of \(max(book.spine.count, 1))"
+    }
+
+    /// Opens the page the scrubber was released on.
+    @MainActor
+    func jump(to target: ScrubTarget) {
+        if target.spineIndex == currentSelection, target.pageIndex == currentPage - 1 { return }
+        if isPagedMode {
+            pagedNavigator?.show(spineIndex: target.spineIndex, page: target.pageIndex)
+        } else {
+            navigate(to: .page(target.pageIndex), in: target.spineIndex)
+        }
+    }
+
+    /// VoiceOver's adjustable action on the scrubber: the start of the next or previous chapter.
+    @MainActor
+    func jumpChapter(by offset: Int) {
+        let spineIndex = min(max(currentSelection + offset, 0), max(book.spine.count - 1, 0))
+        jump(to: ScrubTarget(spineIndex: spineIndex, pageIndex: 0, bookPage: nil, bookTotal: nil))
+    }
+
     /// "415 of 832", or the chapter while the book is still being counted.
     var progressText: String {
         if let position = bookPagePosition {

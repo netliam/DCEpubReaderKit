@@ -167,6 +167,10 @@ extension DCChapterWebView {
                 guard let page = Int(rawPage ?? ""), page >= 0 else { return }
                 let method: JSMethod = isHorizontal ? .scrollToHorizontalPage(page) : .scrollToVerticalPage(page)
                 _ = try? await webView.evaluateJavaScriptAsync(method.rawValue)
+            case .page(let index):
+                let page = min(max(0, index), max(cachedTotalPages - 1, 0))
+                let method: JSMethod = isHorizontal ? .scrollToHorizontalPage(page) : .scrollToVerticalPage(page)
+                _ = try? await webView.evaluateJavaScriptAsync(method.rawValue)
             }
         }
 

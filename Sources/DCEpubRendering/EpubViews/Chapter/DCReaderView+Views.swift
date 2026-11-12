@@ -68,23 +68,12 @@ extension DCReaderView {
         .padding(.horizontal, 16)
     }
 
-    /// Reading progress, page number and the reader menu.
+    /// Progress scrubber, page number and the reader menu.
     private var bottomControls: some View {
         ZStack {
-            VStack(spacing: 6) {
-                ProgressView(value: viewModel.readingProgress)
-                    .progressViewStyle(.linear)
-                    .tint(viewModel.textColor.opacity(0.5))
-                    .frame(width: 170)
-                Text(viewModel.progressText)
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(viewModel.textColor.opacity(0.6))
-            }
-            .opacity(viewModel.hasPagePosition ? 1 : 0)
-            .animation(.easeInOut(duration: 0.2), value: viewModel.hasPagePosition)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Progress")
-            .accessibilityValue(viewModel.progressText)
+            DCProgressScrubber(viewModel: viewModel)
+                .opacity(viewModel.hasPagePosition ? 1 : 0)
+                .animation(.easeInOut(duration: 0.2), value: viewModel.hasPagePosition)
 
             HStack {
                 Spacer()
@@ -234,4 +223,75 @@ struct DCShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - Progress scrubber
+
+/// Books-style progress scrubber: drag to any page of the book, with the chapter and page shown
+/// above the slider while dragging; the page opens when the slider is released.
+struct DCProgressScrubber: View {
+
+    @ObservedObject var viewModel: DCReaderViewModel
+    /// The slider's position while dragging; `nil` follows the page on screen.
+    @State private var dragFraction: Double?
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Slider(value: Binding(get: { dragFraction ?? viewModel.scrubberFraction },
+                                  set: { dragFraction = $0 }),
+                   in: 0...1) { editing in
+                if editing {
+                    dragFraction = dragFraction ?? viewModel.scrubberFraction
+                } else if let fraction = dragFraction {
+                    viewModel.jump(to: viewModel.scrubTarget(at: fraction))
+                    // Keep the thumb where it was released until the new page reports its position.
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 600_000_000)
+                        dragFraction = nil
+                    }
+                }
+            }
+            .tint(viewModel.textColor.opacity(0.5))
+            .frame(width: 220)
+            .overlay(alignment: .top) {
+                if let dragFraction {
+                    preview(for: viewModel.scrubTarget(at: dragFraction))
+                        .offset(y: -64)
+                        .transition(.opacity)
+                }
+            }
+            Text(viewModel.progressText)
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(viewModel.textColor.opacity(0.6))
+        }
+        .animation(.easeInOut(duration: 0.15), value: dragFraction == nil)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Progress")
+        .accessibilityValue(viewModel.progressText)
+        .accessibilityHint("Swipe up or down to move by chapter.")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: viewModel.jumpChapter(by: 1)
+            case .decrement: viewModel.jumpChapter(by: -1)
+            @unknown default: break
+            }
+        }
+    }
+
+    private func preview(for target: DCReaderViewModel.ScrubTarget) -> some View {
+        VStack(spacing: 2) {
+            Text(viewModel.scrubTitle(for: target))
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+            Text(viewModel.scrubDetail(for: target))
+                .font(.caption.monospacedDigit())
+                .opacity(0.7)
+        }
+        .foregroundStyle(viewModel.textColor)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        // Long chapter titles truncate to the slider's width.
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .allowsHitTesting(false)
+    }
 }
