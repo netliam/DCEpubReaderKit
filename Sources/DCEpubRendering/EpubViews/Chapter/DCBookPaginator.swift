@@ -225,7 +225,7 @@ final class DCBookPaginator {
 
 /// Awaits a web view's `loadHTMLString`.
 @MainActor
-private final class DCPageLoader: NSObject, WKNavigationDelegate {
+final class DCPageLoader: NSObject, WKNavigationDelegate {
     private var continuation: CheckedContinuation<Bool, Never>?
 
     func load(_ html: String, baseURL: URL, in webView: WKWebView) async -> Bool {

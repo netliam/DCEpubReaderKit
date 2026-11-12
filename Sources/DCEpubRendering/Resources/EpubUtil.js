@@ -402,6 +402,98 @@
         }));
     }
 
+    // --------------------------------------------------
+    // EPUB CFI (the chapter part, after "!"), for syncing with other readers
+    // --------------------------------------------------
+    // Highlight wrappers are transparent, as in coords: their text belongs to the surrounding run.
+    function cfiChildren(parent) {
+        const out = [];
+        parent.childNodes.forEach(function (n) {
+            if (n.nodeType === 1 && isHighlightElement(n)) out.push.apply(out, cfiChildren(n));
+            else out.push(n);
+        });
+        return out;
+    }
+
+    function cfiStepsTo(node, offset) {
+        const root = document.documentElement;
+        const steps = [];
+        let el = node;
+        if (node.nodeType === 3) {
+            let parent = node.parentNode;
+            while (parent && isHighlightElement(parent)) parent = parent.parentNode;
+            // Odd step: the run of text after the k-th element child; offset counts the run's text before.
+            let k = 0, before = 0;
+            for (const n of cfiChildren(parent)) {
+                if (n === node) break;
+                if (n.nodeType === 1) { k++; before = 0; } else if (n.nodeType === 3) before += n.nodeValue.length;
+            }
+            steps.push('/' + (2 * k + 1) + ':' + (before + offset));
+            el = parent;
+        }
+        while (el && el !== root && el.parentNode) {
+            const siblings = cfiChildren(el.parentNode).filter(function (n) { return n.nodeType === 1; });
+            steps.push('/' + (2 * (siblings.indexOf(el) + 1)) + (el.id ? '[' + el.id + ']' : ''));
+            el = el.parentNode;
+        }
+        return steps.reverse();
+    }
+
+    function cfiPoint(steps) {
+        let node = document.documentElement;
+        for (let i = 0; i < steps.length; i++) {
+            const m = /^(\d+)(?:\[[^\]]*\])?(?::(\d+))?$/.exec(steps[i]);
+            if (!m || !node) return null;
+            const index = parseInt(m[1], 10), offset = m[2] === undefined ? null : parseInt(m[2], 10);
+            const children = cfiChildren(node);
+            if (index % 2 === 0) {
+                node = children.filter(function (n) { return n.nodeType === 1; })[index / 2 - 1];
+                if (offset !== null) return node ? [node, 0] : null;
+                continue;
+            }
+            // Odd: a text run, and the character in it.
+            let k = 0, left = offset || 0, last = null;
+            for (const n of children) {
+                if (n.nodeType === 1) { if (k === (index - 1) / 2) break; k++; continue; }
+                if (n.nodeType !== 3 || k !== (index - 1) / 2) continue;
+                last = n;
+                if (left <= n.nodeValue.length) return [n, left];
+                left -= n.nodeValue.length;
+            }
+            return last ? [last, last.nodeValue.length] : [node, 0];
+        }
+        return node ? [node, 0] : null;
+    }
+
+    function nodeAtCoords(coord) {
+        const node = getNodeFromCoordFix(coord, document);
+        const offset = parseInt(coord.split('>').pop(), 10) || 0;
+        return node ? [node, node.nodeType === 3 ? Math.min(offset, node.nodeValue.length) : 0] : null;
+    }
+
+    // coords ("a", or "a,b" for a highlight) → the chapter part of a CFI ("/4/2/1:5", or the range
+    // form "/4/2,/1:5,/1:9"). Expects the chapter as loaded, without highlights drawn.
+    function coordsToCFI(coords) {
+        const ends = String(coords).split(',').map(nodeAtCoords);
+        if (ends.some(function (e) { return !e; })) return '';
+        const paths = ends.map(function (e) { return cfiStepsTo(e[0], e[1]); });
+        if (paths.length === 1) return paths[0].join('');
+        let common = 0;
+        while (common < paths[0].length - 1 && common < paths[1].length - 1 && paths[0][common] === paths[1][common]) common++;
+        return paths[0].slice(0, common).join('') + ',' + paths[0].slice(common).join('') + ',' + paths[1].slice(common).join('');
+    }
+
+    // The chapter part of a CFI (point or range) → coords. '' when it doesn't resolve.
+    function cfiToCoords(path) {
+        const parts = String(path).split(',');
+        const full = parts.length === 3 ? [parts[0] + parts[1], parts[0] + parts[2]] : [parts[0]];
+        const coords = full.map(function (p) {
+            const point = cfiPoint(p.split('/').filter(Boolean));
+            return point ? getCoordFromNode(point[0], point[1]) : null;
+        });
+        return coords.some(function (c) { return !c; }) ? '' : coords.join(',');
+    }
+
     // Scrolling layout. Returns the number of screens the chapter takes, as a string (the bridge
     // only reads strings), so the scrolling reader and the whole-book count agree.
     function applyVerticalPagination() {
@@ -1207,6 +1299,8 @@
         highlightSearchOccurrence,
         searchOccurrencePages,
         callHighlightURL,
+        coordsToCFI,
+        cfiToCoords,
         getVisibleLineRects,
         getPageForElementId,
         scrollToCoordsHorizontal,
