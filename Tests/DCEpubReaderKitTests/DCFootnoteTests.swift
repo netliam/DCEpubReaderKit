@@ -174,6 +174,78 @@ extension WebKitBackedTests {
             #expect((single["pages"] ?? 0) > (spread["pages"] ?? 0))
         }
 
+        /// Note markers sit in the margin beside a noted passage's last line, outside the text.
+        @Test func noteMarkersSitInTheMarginWithoutMovingText() async throws {
+            let helper = try String(contentsOf: Self.util.deletingLastPathComponent().appendingPathComponent("EpubHelper.js"), encoding: .utf8)
+            let script = try String(contentsOf: Self.util, encoding: .utf8)
+            // The reader's stylesheet too: its rules (e.g. `div { max-width }`) apply to the markers.
+            let css = try String(contentsOf: Self.util.deletingLastPathComponent().appendingPathComponent("Style.css"), encoding: .utf8)
+            let viewport = "<meta name='viewport' content='width=device-width, initial-scale=1.0'><style>\(css)</style>"
+            let text = String(repeating: "<p>Some words to fill a line or two of the page here.</p>", count: 40)
+                + "<p id='p'>The noted passage is here.</p>"
+            func load(width: CGFloat, paged: Bool) async throws -> WKWebView {
+                let html = "<html><head>\(viewport)<script>window.dcAllowSpreads = true;</script><script>\(helper)</script><script>\(script)</script></head><body>\(text)</body></html>"
+                let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: width, height: 480))
+                let loader = NavigationWaiter()
+                webView.navigationDelegate = loader
+                try await loader.load(html, in: webView)
+                _ = try await webView.evaluateJavaScript(paged ? "applyHorizontalPagination(); 'ok'" : "applyVerticalPagination(); 'ok'")
+                _ = try await webView.evaluateJavaScript("""
+                (function () {
+                    const t = document.getElementById('p').firstChild;
+                    const r = document.createRange(); r.setStart(t, 4); r.setEnd(t, 10);
+                    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+                    highlightSelectionInPlace('highlight-yellow', 'n1');
+                    return 'ok';
+                })()
+                """)
+                return webView
+            }
+            let measure = """
+            (function () {
+                const before = document.getElementById('p').getBoundingClientRect();
+                setHighlightNoteById('n1', true);
+                const after = document.getElementById('p').getBoundingClientRect();
+                const m = document.querySelector('.dc-note-marker');
+                const part = document.querySelector('[data-dc-highlight="n1"]').getBoundingClientRect();
+                return JSON.stringify({
+                    moved: before.left !== after.left || before.top !== after.top || before.height !== after.height ? 1 : 0,
+                    markerLeft: m ? parseFloat(m.style.left) - window.scrollX : -1,
+                    markerTop: m ? parseFloat(m.style.top) - window.scrollY : -1,
+                    lineTop: part.top, lineBottom: part.bottom, width: window.innerWidth,
+                    inBody: m && document.body.contains(m) ? 1 : 0, text: m ? m.textContent.length : -1,
+                    markerWidth: m ? m.getBoundingClientRect().width : -1
+                });
+            })()
+            """
+            func run(_ webView: WKWebView) async throws -> [String: Double] {
+                let raw = try #require(try await webView.evaluateJavaScript(measure) as? String)
+                return try JSONDecoder().decode([String: Double].self, from: Data(raw.utf8))
+            }
+
+            // Paged: in the column gap at the right of the page.
+            let paged = try await load(width: 320, paged: true)
+            let pageIndex = try #require(try await paged.evaluateJavaScript(
+                "String(Math.floor((document.getElementById('p').getClientRects()[0].left + window.scrollX) / window.innerWidth))") as? String)
+            _ = try await paged.evaluateJavaScript("scrollToHorizontalPage(\(pageIndex)); 'ok'")
+            let p = try await run(paged)
+            #expect(p["moved"] == 0, "the marker doesn't move the text")
+            #expect(p["inBody"] == 0 && p["text"] == 0)
+            #expect(p["markerWidth"] == 10, "drawn at its size")
+            #expect(abs((p["markerLeft"] ?? 0) - (320 - 20 + 5)) < 1, "\(p)")
+            #expect((p["markerTop"] ?? 0) >= (p["lineTop"] ?? 0) - 1 && (p["markerTop"] ?? 0) <= (p["lineBottom"] ?? 0), "\(p)")
+
+            // Scrolling: the right margin.
+            let scrolling = try await load(width: 320, paged: false)
+            let v = try await run(scrolling)
+            #expect(abs((v["markerLeft"] ?? 0) - (320 - 10)) < 1, "\(v)")
+
+            // Removing the note or the highlight removes the marker.
+            #expect(try await paged.evaluateJavaScript("setHighlightNoteById('n1', false); String(document.querySelectorAll('.dc-note-marker').length)") as? String == "0")
+            _ = try await paged.evaluateJavaScript("setHighlightNoteById('n1', true); 'ok'")
+            #expect(try await paged.evaluateJavaScript("removeHighlightById('n1'); String(document.querySelectorAll('.dc-note-marker').length)") as? String == "0")
+        }
+
         @Test func headingSplitAcrossPagesOpensOnItsFirstPage() async throws {
             let script = try String(contentsOf: Self.util, encoding: .utf8)
             // A long heading that pagination splits over pages 0 and 1.

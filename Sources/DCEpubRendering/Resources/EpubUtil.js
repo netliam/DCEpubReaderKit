@@ -92,12 +92,14 @@
         root.style.transformOrigin = '0 0';
         root.style.transform = 'translate(' + x + 'px, ' + y + 'px) scale(' + scale + ')';
         window.dcFixedLayoutScale = scale;
+        window.dcFixedLayoutTransform = { x: x, y: y, scale: scale };
         return '1';
     }
 
     function applyHorizontalPagination() {
         const columnGap = 20;
         if (window.dcFixedLayout) return applyFixedLayout(columnGap);
+        window.dcPagedLayout = true;
         const stylemargin = 0;
 
         const d = document.body;
@@ -143,6 +145,7 @@
             layoutColumns(pageCount);
         }
 
+        layoutNoteMarkers();
         return String(pageCount);
     }
 
@@ -371,6 +374,7 @@
     // only reads strings), so the scrolling reader and the whole-book count agree.
     function applyVerticalPagination() {
         if (window.dcFixedLayout) return applyFixedLayout();
+        window.dcPagedLayout = false;
         const columnGap = 20;
         const stylemargin = 10;
         const d = document.body;
@@ -380,6 +384,7 @@
         d.style.textAlign = 'justify';
         const scroller = document.scrollingElement || document.documentElement || d;
         const pages = Math.ceil((scroller.scrollHeight - 1) / Math.max(1, window.innerHeight));
+        layoutNoteMarkers();
         return String(Math.max(1, pages));
     }
     
@@ -982,7 +987,57 @@
             if (hasNote && index === parts.length - 1) el.setAttribute(NOTE_ATTR, '');
             else el.removeAttribute(NOTE_ATTR);
         });
+        layoutNoteMarkers();
         return parts.length ? uuid : null;
+    }
+
+    // Draws a note marker in the margin beside the last line of each passage with a note (Books
+    // puts them in the margin). Markers live in a layer on <html>, outside <body>, positioned in
+    // document coordinates; they're redrawn whenever notes or the layout change.
+    const NOTE_MARKER_LAYER = 'dc-note-markers';
+    const NOTE_MARKER_SIZE = 10;
+    function layoutNoteMarkers() {
+        const old = document.getElementById(NOTE_MARKER_LAYER);
+        if (old) old.remove();
+        const noted = document.querySelectorAll('[' + NOTE_ATTR + ']');
+        if (!noted.length) return '0';
+        const layer = document.createElement('div');
+        layer.id = NOTE_MARKER_LAYER;
+        layer.setAttribute('aria-hidden', 'true');
+        layer.style.cssText = 'position:absolute; left:0; top:0; width:0; height:0;';
+        document.documentElement.appendChild(layer);
+
+        const W = window.innerWidth;
+        const gap = 20, size = NOTE_MARKER_SIZE;
+        const columnWidth = W / columnsPerPage();
+        const fixed = window.dcFixedLayoutTransform;
+        noted.forEach(function (el) {
+            const rects = el.getClientRects();
+            const r = rects[rects.length - 1];
+            if (!r) return;
+            let left, top;
+            if (fixed) {
+                // Fixed-layout pages have no margin: just after the passage, in page coordinates.
+                left = (r.right - fixed.x) / fixed.scale + 2;
+                top = (r.top - fixed.y) / fixed.scale;
+            } else {
+                const x = r.left + window.scrollX;
+                left = window.dcPagedLayout
+                    // The gap after the passage's column (the paged web view runs one gap past the text).
+                    ? Math.floor(x / columnWidth) * columnWidth + columnWidth - gap + (gap - size) / 2
+                    // Scrolling: the body's right margin.
+                    : W - size;
+                top = r.top + window.scrollY + (r.height - size) / 2;
+            }
+            const marker = document.createElement('div');
+            marker.className = 'dc-note-marker';
+            marker.setAttribute('data-dc-note-marker', el.getAttribute(HIGHLIGHT_ATTR) || '');
+            marker.setAttribute('onclick', 'callHighlightURL(this);');
+            marker.style.left = left + 'px';
+            marker.style.top = top + 'px';
+            layer.appendChild(marker);
+        });
+        return String(noted.length);
     }
     
     function removeHighlightById(uuid) {
@@ -995,6 +1050,7 @@
             // Merge the text back into one node, as a freshly loaded chapter has it, so coords match.
             parent.normalize();
         });
+        if (parts.length) layoutNoteMarkers();
         return parts.length ? uuid : null;
     }
     
@@ -1009,7 +1065,7 @@
     function isTappableAtPoint(x, y) {
         const el = document.elementFromPoint(x, y);
         if (!el || !el.closest) return 'false';
-        return el.closest('[' + HIGHLIGHT_ATTR + '], a[href], img, image') ? 'true' : 'false';
+        return el.closest('[' + HIGHLIGHT_ATTR + '], .dc-note-marker, a[href], img, image') ? 'true' : 'false';
     }
     
     // --------------------------------------------------
@@ -1317,6 +1373,7 @@
         expandSelectionOverHighlights,
         setHighlightStyleById,
         setHighlightNoteById,
+        layoutNoteMarkers,
         removeHighlightById,
         isHighlightAtPoint,
         isTappableAtPoint,

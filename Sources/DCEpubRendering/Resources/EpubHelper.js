@@ -100,7 +100,8 @@
         const rectStr = getRectForSelectedText(elm);
         thisHighlight = elm || thisHighlight;
         // Every part of a highlight carries its uuid; only the first has it as its id.
-        const id = thisHighlight ? (thisHighlight.getAttribute('data-dc-highlight') || thisHighlight.id) : null;
+        const id = thisHighlight ? (thisHighlight.getAttribute('data-dc-highlight')
+            || thisHighlight.getAttribute('data-dc-note-marker') || thisHighlight.id) : null;
         if (id && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.highlightTapped) {
             window.webkit.messageHandlers.highlightTapped.postMessage({ uuid: id, rect: rectStr });
         } else {
