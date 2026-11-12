@@ -47,7 +47,8 @@ Handoff notes for continuing this work in Claude Code. They cover everything don
 | `58deb2a` | Custom theme colors in Customize. |
 | `4dbe278` | Overlapping highlights merge (notes kept). |
 | `1d86764` | Note markers in the margin. |
-| (this commit) | Share all highlights and notes from the Highlights list. |
+| `20a232d` | Share all highlights and notes from the Highlights list. |
+| (this commit) | Audit fixes: book scripts stripped, safe merge order, one-pass search pages, NCX test, jQuery and dead JS removed. |
 
 In total, against `main`: 74 files changed, about 8.4k insertions. The last eight commits account for 38 files and about 2.2k of them.
 
@@ -78,6 +79,8 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
 - **Fixed layout:** `DCEpubBook.isFixedLayout(spineIndex:)` (package `rendition:layout`, overridable per itemref). `DCChapterHTMLBuilder` loads those pages without the reader stylesheet, with `window.dcFixedLayout` set to the viewport size; `applyFixedLayout` scales and centers them, and the pagination functions return 1.
 - **Fonts:** system fonts are CSS classes on `<html>` like the bundled ones (`DCFontFamily.systemFontStack` and `Style.css` must agree; a test checks).
 - **Theme colors:** `DCThemeColorStore` (UserDefaults `DCThemeColors`, keyed `theme-light|dark`). `DCReaderAppearance` now carries the resolved colors; use `hasDarkBackground` rather than `isDark` for contrast decisions.
+- **Book scripts:** `DCChapterHTMLBuilder.withoutBookScripts` removes a chapter's `<script>`s and `on…=` handlers before the reader's scripts go in, and `javascript:` links are swallowed: the reader's message handlers must only be reachable from its own code. The only script now is `EpubUtil.js` (jQuery, `EpubHelper.js` and the old highlight libraries are gone; `callHighlightURL` lives in `EpubUtil.js`).
+- **Preferences:** `UserDefaults` is the preferences store; `DCUserPreferences` is just the `CacheKey` enum.
 - **Last highlight color:** `DCHighlightStyle.lastUsed` (UserDefaults key `DCLastHighlightStyle`).
 - **Search result pages** are exact: after each search, `DCBookPaginator.locateSearch` lays out each matching chapter off screen and runs `highlightSearchOccurrence` for every match, the same code the reader jumps with. The sheet shows the estimate until then.
 - **Scrolling mode:**
@@ -107,7 +110,7 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
 
 ## Testing
 
-- Uses Swift Testing (116 tests). WebKit-backed suites are nested under `WebKitBackedTests` (in `DCSearchHighlightJSTests.swift`), which runs serially.
+- Uses Swift Testing (118 tests). WebKit-backed suites are nested under `WebKitBackedTests` (in `DCSearchHighlightJSTests.swift`), which runs serially.
 - Run via `xcodebuild`, because Xcode's in-memory file list can be stale for new files:
 
   ```sh

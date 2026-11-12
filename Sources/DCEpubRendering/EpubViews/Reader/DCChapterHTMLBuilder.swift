@@ -24,15 +24,12 @@ enum DCChapterHTMLBuilder {
         #endif
 
         guard let style = bundle.url(forResource: "Style", withExtension: "css"),
-              let epubHelper = bundle.url(forResource: "EpubHelper", withExtension: "js"),
-              let dohighlight = bundle.url(forResource: "dohighlight", withExtension: "js"),
-              let jquery = bundle.url(forResource: "jquery-1.10.2", withExtension: "js"),
-              let jqueryhighlight = bundle.url(forResource: "jquery.highlight", withExtension: "js"),
               let utils = bundle.url(forResource: "EpubUtil", withExtension: "js"),
               let contentsOfFile = pathtofile.removingPercentEncoding,
               var htmlContent = try? String(contentsOfFile: contentsOfFile, encoding: .utf8) else {
             return ""
         }
+        htmlContent = withoutBookScripts(htmlContent)
 
         // Links resolve against the chapter file (see `linkAction` in EpubUtil.js); the page's base
         // URL is only its folder.
@@ -44,10 +41,6 @@ enum DCChapterHTMLBuilder {
         """
         <script>window.dcChapterURL = \(chapterURLLiteral); window.dcAllowSpreads = \(userPreferences.getTextLayout().allowsSpreads);</script>\n
         <link rel='stylesheet' type='text/css' href=\"\(style)\">\n
-        <script type='text/javascript' src=\"\(epubHelper)\"></script>\n
-        <script type='text/javascript' src=\"\(dohighlight)\"></script>\n
-        <script type='text/javascript' src=\"\(jquery)\"></script>\n
-        <script type='text/javascript' src=\"\(jqueryhighlight)\"></script>\n
         <script type='text/javascript' src=\"\(utils)\"></script>\n
         \(themeStyle(for: appearance))\n
         <style id="\(layoutStyleId)">\(userPreferences.getTextLayout().css)</style>\n
@@ -62,7 +55,7 @@ enum DCChapterHTMLBuilder {
 
         if fixedLayout {
             return fixedLayoutHTML(htmlContent, chapterURLLiteral: chapterURLLiteral,
-                                   scripts: [epubHelper, utils])
+                                   scripts: [utils])
         }
 
         htmlContent = htmlContent.replacingOccurrences(of: "</head>", with: headInject)
@@ -74,6 +67,19 @@ enum DCChapterHTMLBuilder {
             htmlContent = htmlContent.replacingOccurrences(of: "<html", with: "<html \(classAttr)")
         }
         return htmlContent
+    }
+
+    /// The chapter without its own scripts and inline event handlers: they'd run with the reader's
+    /// message handlers (open links, show menus). The reader adds its handlers at runtime.
+    static func withoutBookScripts(_ html: String) -> String {
+        var html = html.replacingOccurrences(of: #"(?s)<script\b[^>]*/>|<script\b.*?</script\s*>"#, with: "",
+                                             options: [.regularExpression, .caseInsensitive])
+        // Only inside tags, so prose like "online=…" is left alone; one handler per pass.
+        let handler = #"(<[a-zA-Z][^>]*?)\son[a-zA-Z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)"#
+        while html.range(of: handler, options: .regularExpression) != nil {
+            html = html.replacingOccurrences(of: handler, with: "$1", options: .regularExpression)
+        }
+        return html
     }
 
     // MARK: Fixed layout

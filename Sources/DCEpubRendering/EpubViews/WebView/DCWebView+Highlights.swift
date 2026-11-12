@@ -144,6 +144,10 @@ extension DCWebView {
               let selectedText = await getSelectedText()?.trimmingCharacters(in: .whitespacesAndNewlines),
               !selectedText.isEmpty,
               let uuid = await highlightSelection(cssClass: style.cssClass, uuid: UUID().uuidString) else {
+            // The merged highlights were only taken off the page; put them back.
+            for highlight in merged {
+                await applyHighlight(highlight)
+            }
             return nil
         }
         let note = Self.mergedNote(merged)
@@ -159,6 +163,10 @@ extension DCWebView {
             style: style
         )
         await viewModel.saveHighlight(highlight)
+        // Only now that the merged highlight is saved: deleting first could lose their notes.
+        for old in merged {
+            await viewModel.deleteHighlight(uuid: old.uuid)
+        }
         if !note.isEmpty {
             await updateDrawnHighlight(highlight)
         }
@@ -219,18 +227,15 @@ extension DCWebView {
         try? await self.evaluateJavaScriptAsync(JSMethod.rectsForSelection.rawValue) as? String
     }
 
-    /// Widens the selection over the highlights it overlaps and deletes them (see
-    /// `expandSelectionOverHighlights` in EpubUtil.js). Returns them, in reading order.
+    /// Widens the selection over the highlights it overlaps and takes them off the page (see
+    /// `expandSelectionOverHighlights` in EpubUtil.js). Returns them, in reading order; the caller
+    /// deletes them from the store once the merged highlight is saved.
     private func mergeOverlappedHighlights() async -> [DCHighlight] {
         guard let raw = try? await evaluateJavaScriptAsync("expandSelectionOverHighlights()"),
               let uuids = try? JSONDecoder().decode([String].self, from: Data(raw.utf8)),
               !uuids.isEmpty else { return [] }
         let saved = await viewModel.loadHighlights()
-        let merged = uuids.compactMap { uuid in saved.first { $0.uuid == uuid } }
-        for uuid in uuids {
-            await viewModel.deleteHighlight(uuid: uuid)
-        }
-        return merged
+        return uuids.compactMap { uuid in saved.first { $0.uuid == uuid } }
     }
 
     /// The notes of merged highlights, kept in reading order.

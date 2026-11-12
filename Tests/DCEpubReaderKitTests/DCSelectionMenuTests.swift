@@ -161,13 +161,12 @@ extension WebKitBackedTests {
         """
 
         private func loadPage(body: String = simpleBody) async throws -> WKWebView {
-            let helper = try String(contentsOf: Self.resources.appendingPathComponent("EpubHelper.js"), encoding: .utf8)
             let util = try String(contentsOf: Self.resources.appendingPathComponent("EpubUtil.js"), encoding: .utf8)
             // Like an EPUB chapter: the XML declaration (parsed as a comment) and doctype come before <html>.
             let html = """
             <?xml version="1.0" encoding="utf-8"?>
             <!DOCTYPE html>
-            <html><head><script>\(helper)</script><script>\(util)</script></head><body>\(body)</body></html>
+            <html><head><script>\(util)</script></head><body>\(body)</body></html>
             """
             let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
             let loader = NavigationWaiter()

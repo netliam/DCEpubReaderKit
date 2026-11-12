@@ -14,7 +14,7 @@ public final class DCReaderViewBuilder {
                              spineIndex: Int,
                              initialCoords: String? = nil,
                              delegate: DCReaderCoordsProtocol?) -> DCReaderView {
-        let userPreferences: DCUserPreferencesProtocol = DCUserPreferences(userPreferences: UserDefaults.standard)
+        let userPreferences: DCUserPreferencesProtocol = UserDefaults.standard
         let viewModel = DCReaderViewModel(
             book: book,
             spineIndex: spineIndex,

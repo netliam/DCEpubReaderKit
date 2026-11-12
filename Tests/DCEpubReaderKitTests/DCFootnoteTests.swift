@@ -176,7 +176,6 @@ extension WebKitBackedTests {
 
         /// Note markers sit in the margin beside a noted passage's last line, outside the text.
         @Test func noteMarkersSitInTheMarginWithoutMovingText() async throws {
-            let helper = try String(contentsOf: Self.util.deletingLastPathComponent().appendingPathComponent("EpubHelper.js"), encoding: .utf8)
             let script = try String(contentsOf: Self.util, encoding: .utf8)
             // The reader's stylesheet too: its rules (e.g. `div { max-width }`) apply to the markers.
             let css = try String(contentsOf: Self.util.deletingLastPathComponent().appendingPathComponent("Style.css"), encoding: .utf8)
@@ -184,7 +183,7 @@ extension WebKitBackedTests {
             let text = String(repeating: "<p>Some words to fill a line or two of the page here.</p>", count: 40)
                 + "<p id='p'>The noted passage is here.</p>"
             func load(width: CGFloat, paged: Bool) async throws -> WKWebView {
-                let html = "<html><head>\(viewport)<script>window.dcAllowSpreads = true;</script><script>\(helper)</script><script>\(script)</script></head><body>\(text)</body></html>"
+                let html = "<html><head>\(viewport)<script>window.dcAllowSpreads = true;</script><script>\(script)</script></head><body>\(text)</body></html>"
                 let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: width, height: 480))
                 let loader = NavigationWaiter()
                 webView.navigationDelegate = loader
@@ -297,5 +296,25 @@ struct DCFixedLayoutParsingTests {
         let reflowable = try DCEpubParser.parse(from: fixture)
         #expect(reflowable.metadata.renditionLayout == nil)
         #expect(!reflowable.isFixedLayout(spineIndex: 0))
+    }
+}
+
+/// A book's own scripts must not run in the reader (they'd reach its message handlers).
+@Suite("Book scripts")
+struct DCBookScriptTests {
+    @Test func scriptsAndInlineHandlersAreRemoved() {
+        let html = """
+        <html><head><script src="evil.js"/><SCRIPT type="text/javascript">
+        window.webkit.messageHandlers.linkTapped.postMessage({kind: 'link', url: 'https://x'});
+        </SCRIPT></head><body onload="go()"><p>Free online=yes, and onset.</p>
+        <img src="a.png" onerror='go()' alt="A"/><a href="#n" onClick=go()>n</a></body></html>
+        """
+        let clean = DCChapterHTMLBuilder.withoutBookScripts(html)
+        #expect(!clean.lowercased().contains("<script"))
+        #expect(!clean.contains("postMessage"))
+        #expect(!clean.lowercased().contains("onload") && !clean.contains("onerror") && !clean.contains("onClick"))
+        #expect(clean.contains("<body>"))
+        #expect(clean.contains(#"<img src="a.png" alt="A"/>"#))
+        #expect(clean.contains("Free online=yes, and onset."), "text is untouched")
     }
 }

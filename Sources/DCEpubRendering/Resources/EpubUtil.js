@@ -12,17 +12,13 @@
     // Private state
     // --------------------------------------------------
     const SEL_LEN = 7;
-    let isASearch = false;
-    let searchString; // used by getPageFromCoords*
 
     // Set to true to print navigation debug info to the Web Inspector console.
     const NAV_DEBUG = false;
     
     // --------------------------------------------------
-    // Environment helpers (no hard jQuery requirement)
+    // Environment helpers
     // --------------------------------------------------
-    const hasJQ = typeof window.jQuery === 'function';
-    const $ = hasJQ ? window.jQuery : null;
     
     function isElementVisible(el){
         if (!el || el.nodeType !== 1) return false;
@@ -45,7 +41,6 @@
     
     function offsetOf(el){
         if (!el || el.nodeType !== 1) return { top: 0, left: 0 };
-        if (hasJQ && $.fn.offset) return $.fn.offset.call($(el));
         const r = el.getBoundingClientRect();
         const st = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
         const sl = window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
@@ -370,6 +365,42 @@
         return String(Math.max(0, page));
     }
     
+    // The pages (0-based) of several occurrences of `query`, numbered as highlightSearchOccurrence
+    // numbers them, in one pass and without marking anything. JSON array; -1 for a missing one.
+    function searchOccurrencePages(query, occurrences, vertical) {
+        if (!query || !occurrences.length) return '[]';
+        const nodes = searchableTextNodes();
+        const starts = [];
+        let text = '';
+        nodes.forEach(function (n) { starts.push(text.length); text += n.nodeValue; });
+        const haystack = text.toLowerCase(), needle = query.toLowerCase();
+        const wanted = Math.max.apply(null, occurrences);
+        const found = [];
+        for (let from = 0, i = 0; i <= wanted; i++) {
+            const index = haystack.indexOf(needle, from);
+            if (index < 0) break;
+            found.push(index);
+            from = index + needle.length;
+        }
+        const range = document.createRange();
+        let n = 0;
+        return JSON.stringify(occurrences.map(function (occurrence) {
+            const index = found[occurrence];
+            if (index === undefined) return -1;
+            // The text node holding the match's first character (starts are ascending).
+            n = 0;
+            while (n + 1 < nodes.length && starts[n + 1] <= index) n++;
+            const node = nodes[n], offset = index - starts[n];
+            range.setStart(node, offset);
+            range.setEnd(node, Math.min(node.nodeValue.length, offset + needle.length));
+            const r = range.getClientRects()[0] || range.getBoundingClientRect();
+            const page = vertical
+                ? Math.floor((r.top + window.scrollY) / window.innerHeight)
+                : Math.floor((r.left + window.scrollX) / window.innerWidth);
+            return Math.max(0, page);
+        }));
+    }
+
     // Scrolling layout. Returns the number of screens the chapter takes, as a string (the bridge
     // only reads strings), so the scrolling reader and the whole-book count agree.
     function applyVerticalPagination() {
@@ -503,11 +534,7 @@
     }
     
     function filterByClass(element){
-        const re = /(\r\n|\n|\r)/gm;
-        if (!isASearch) {
-            return (element.nodeType !== 10 && !isHighlightElement(element));
-        }
-        return (!re.test(element.nodeValue || '') && element.nodeType !== 8 && element.nodeType !== 10 && !isHighlightElement(element));
+        return (element.nodeType !== 10 && !isHighlightElement(element));
     }
     
     function getNodeFromCoordFix(mark, ifrDoc) {
@@ -519,7 +546,6 @@
             // Coords never count the doctype (see getNodePos); XHTML chapters have one before <html>.
             current = childrenFiltered(current, function (n) { return n.nodeType !== 10; })[idx];
         }
-        isASearch = false;
         return current;
     }
     
@@ -545,7 +571,6 @@
                 }
             }
         }
-        if (current) isASearch = false;
         return current;
     }
     
@@ -570,7 +595,7 @@
     }
     
     function getFirstNodeVisibleHorizontal(page) {
-        const arr = hasJQ ? $.makeArray($(':visible').not('body, html, div')) : listVisibleNonContainer();
+        const arr = listVisibleNonContainer();
         let first = undefined;
         for (let i = 0; i < arr.length; i++) {
             const el = arr[i];
@@ -582,7 +607,7 @@
     }
     
     function getFirstNodeVisibleVertical(page) {
-        const arr = hasJQ ? $.makeArray($(':visible').not('body, html, div')) : listVisibleNonContainer();
+        const arr = listVisibleNonContainer();
         let first = undefined;
         for (let i = 0; i < arr.length; i++) {
             const el = arr[i];
@@ -677,23 +702,13 @@
         return false;
     }
     
-    function getNumPages() {
-        let pages = parseInt(document.width / window.innerWidth, 10);
-        if ((document.width / window.innerWidth) - pages > 0) pages++;
-        return pages;
-    }
-    
     function getPageFromCoords(mark) {
         let node = getNodeFromCoord(mark, document) || getNodeFromCoordFix(mark, document);
         if (!node) return 0;
         let leftOffset = offsetOf(node).left;
         if (leftOffset === 0 && node.parentNode) {
-            if (hasJQ && !$(node.parentNode).is(':visible')) return -1000;
+            if (!isElementVisible(node.parentNode)) return -1000;
             leftOffset = offsetOf(node.parentNode).left;
-        }
-        if (typeof searchString === 'string' && searchString.length) {
-            while (node && !getNodeText(node).includes(searchString)) { node = node.nextSibling; leftOffset = offsetOf(node).left; }
-            if (hasJQ && node) $(node).highlight(searchString);
         }
         const page = parseInt((leftOffset / window.innerWidth), 10);
         if (NAV_DEBUG) console.log('[Nav] getPageFromCoords leftOffset=' + leftOffset + ' innerWidth=' + window.innerWidth + ' page=' + page);
@@ -705,88 +720,14 @@
         if (!node) return 0;
         let topOffset = offsetOf(node).top;
         if (topOffset === 0 && node.parentNode) {
-            if (hasJQ && !$(node.parentNode).is(':visible')) return -1000;
+            if (!isElementVisible(node.parentNode)) return -1000;
             topOffset = offsetOf(node.parentNode).top;
-        }
-        if (typeof searchString === 'string' && searchString.length) {
-            while (node && !getNodeText(node).includes(searchString)) { node = node.nextSibling; topOffset = offsetOf(node).top; }
-            if (hasJQ && node) $(node).highlight(searchString);
         }
         // Returns the 0-based page index that contains this element.
         // floor(topOffset / innerHeight) gives the page whose top edge is <= the element.
         const page = Math.floor(topOffset / window.innerHeight);
         if (NAV_DEBUG) console.log('[Nav] getPageFromCoordsVertical topOffset=' + topOffset + ' innerHeight=' + window.innerHeight + ' page=' + page);
         return page;
-    }
-    
-    function setBookFontSizeHorizontal(fontSize, pageNumber) {
-        try {
-            const currentVisibleNode = getFirstNodeVisibleHorizontal(pageNumber);
-            const currentNodeCoords = getCoordFromNode(currentVisibleNode, offsetOf(currentVisibleNode).left);
-            if (hasJQ) $('body,table').css('font-size', fontSize);
-            else document.body.style.fontSize = fontSize;
-            const newPageNumber = getPageFromCoords(currentNodeCoords);
-            const newNumPages = getNumPages();
-            window.scrollTo(window.innerWidth * newPageNumber, 0);
-            return newPageNumber + '-' + newNumPages;
-        } catch (err) { return '0-0'; }
-    }
-    
-    function getBookFontSize() {
-        if (hasJQ) return String($('body').css('font-size')).split('px')[0];
-        const v = window.getComputedStyle(document.body).fontSize || '0px';
-        return v.replace('px','');
-    }
-    
-    function displayMode(mode) {
-        // Legacy behavior relies on CSS classes; if no jQuery, do a best-effort
-        const apply = (el, remove, add)=>{
-            remove.forEach(c=> el.classList.remove(c));
-            if (add) el.classList.add(add);
-        };
-        const all = document.querySelectorAll('*');
-        switch (mode) {
-            case 0: all.forEach(el=>apply(el,['night','sepia','grey'])); break;
-            case 1: all.forEach(el=>apply(el,['sepia','grey'],'night')); break;
-            case 2: all.forEach(el=>apply(el,['night','sepia'],'grey')); break;
-            case 3: all.forEach(el=>apply(el,['night','grey'],'sepia')); break;
-            default: all.forEach(el=>apply(el,['night','sepia','grey'])); break;
-        }
-    }
-    
-    function getElementsBetweenTree(start, end) {
-        if (!start || !end) return null;
-        const ancestor = getCommonAncestor(start, end);
-        const before = [start];
-        let s = start;
-        while (s.parentNode !== ancestor) {
-            let el = s; while (el.nextSibling) before.push(el = el.nextSibling);
-            s = s.parentNode;
-        }
-        const after = [];
-        let e = end;
-        while (e.parentNode !== ancestor) {
-            let el = e; while (el.previousSibling) after.push(el = el.previousSibling);
-            e = e.parentNode;
-        }
-        after.reverse();
-        while ((s = s.nextSibling) !== e) before.push(s);
-        before.push(e);
-        return before.concat(after);
-    }
-    
-    function getCommonAncestor(a, b) {
-        // Vanilla alternative to $(a).parents().andSelf().index(b)
-        const parents = [];
-        let cur = a; while (cur) { parents.push(cur); cur = cur.parentNode; }
-        while (b) { if (parents.indexOf(b) !== -1) return b; b = b.parentNode; }
-        return null;
-    }
-    
-    function highlightSearchResult(mark, term) {
-        isASearch = true; searchString = term;
-        const node = getNodeFromCoord(mark, document) || getNodeFromCoordFix(mark, document);
-        if (hasJQ && node) $(node).highlight(term);
     }
     
     function displayRange(doc, anchorNode, anchorOffset, focusNode, focusOffset, id, cl, coords, guid) {
@@ -1155,10 +1096,23 @@
         return { kind: 'image', url: url.href, alt: alt, rect: rectString(img) };
     }
 
+    // Tapping a highlight part or note marker (their onclick): the app shows the highlight's menu.
+    function callHighlightURL(el) {
+        const id = el ? (el.getAttribute(HIGHLIGHT_ATTR) || el.getAttribute('data-dc-note-marker') || el.id) : null;
+        const handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.highlightTapped;
+        if (id && handler) handler.postMessage({ uuid: id, rect: rectString(el) });
+    }
+
     function installLinkBridge() {
         if (window.__dc_link_listener) return;
         window.__dc_link_listener = function (event) {
             const a = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+            // Book scripts are removed (see DCChapterHTMLBuilder); javascript: links would run one.
+            if (a && /^\s*javascript:/i.test(a.getAttribute('href'))) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
             const action = a ? linkAction(a) : imageAction(event.target);
             const handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.linkTapped;
             if (!action || !handler) return;
@@ -1174,84 +1128,6 @@
     function checkIfValid(anchorNode, anchorOffset, focusNode, focusOffset) {
         const invalid = (n)=> n && isHighlightElement(n.parentNode);
         return !(invalid(anchorNode) || invalid(focusNode));
-    }
-    
-    function displaySelectionText(iniNode, iniOffset, endNode, endOffset, cl, coords, guid) {
-        const selectionRange = document.createRange();
-        selectionRange.setStart(iniNode, iniOffset);
-        selectionRange.setEnd(endNode, endOffset);
-        const highlightNode = document.createElement('span');
-        highlightNode.className = isHighlightClassName(cl) ? cl : 'highlight_search';
-        highlightNode.setAttribute('id', guid);
-        highlightNode.setAttribute('onclick', 'callHighlightURL(this);');
-        selectionRange.surroundContents(highlightNode);
-    }
-    
-    function setFontFaceHorizontal(fontFace, pageNumber) {
-        try {
-            const currentVisibleNode = getFirstNodeVisibleHorizontal(pageNumber);
-            const currentNodeCoords = getCoordFromNode(currentVisibleNode, offsetOf(currentVisibleNode).left);
-            if (hasJQ) $('*').css('font-family', fontFace); else document.body.style.fontFamily = fontFace;
-            const newPageNumber = getPageFromCoords(currentNodeCoords);
-            const newNumPages = getNumPages();
-            window.scrollTo(window.innerWidth * newPageNumber, 0);
-            return newPageNumber + '-' + newNumPages;
-        } catch (err) { return '0-0'; }
-    }
-    
-    // jQuery highlight plugin (only if jQuery exists; core does not depend on it)
-    if (hasJQ) {
-        $.extend({
-            highlight: function (node, re, nodeName, className) {
-                if (node.nodeType === 3) {
-                    const match = node.data.match(re);
-                    if (match) {
-                        const highlight = document.createElement(nodeName || 'span');
-                        highlight.className = className || 'highlight_search';
-                        const wordNode = node.splitText(match.index);
-                        wordNode.splitText(match[0].length);
-                        const wordClone = wordNode.cloneNode(true);
-                        highlight.appendChild(wordClone);
-                        wordNode.parentNode.replaceChild(highlight, wordNode);
-                        return 1;
-                    }
-                } else if ((node.nodeType === 1 && node.childNodes) && !/(script|style)/i.test(node.tagName) && !(node.tagName === (nodeName || '').toUpperCase() && node.className === (className || ''))) {
-                    for (let i = 0; i < node.childNodes.length; i++) { i += $.highlight(node.childNodes[i], re, nodeName, className); }
-                }
-                return 0;
-            }
-        });
-        
-        $.fn.unhighlight = function (options) {
-            const settings = { className: 'highlight_search', element: 'span' };
-            $.extend(settings, options);
-            return this.find(settings.element + '.' + settings.className).each(function () {
-                const parent = this.parentNode; parent.replaceChild(this.firstChild, this); parent.normalize();
-            }).end();
-        };
-        
-        $.fn.highlight = function (words, options) {
-            const settings = { className: 'highlight_search', element: 'span', caseSensitive: false, wordsOnly: false };
-            $.extend(settings, options);
-            if (words.constructor === String) words = [words];
-            words = $.grep(words, function(word){ return word !== ''; });
-            words = $.map(words, function(word){ return word.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&"); });
-            if (words.length === 0) return this;
-            const flag = settings.caseSensitive ? '' : 'i';
-            let pattern = '(' + words.join('|') + ')';
-            if (settings.wordsOnly) pattern = '\\b' + pattern + '\\b';
-            const re = new RegExp(pattern, flag);
-            return this.each(function(){ $.highlight(this, re, settings.element, settings.className); });
-        };
-    }
-    
-    function getPageForNodeID(nodeID){
-        const nodeSelected = document.getElementById(nodeID);
-        if (!nodeSelected) return '';
-        const currentNodeCoords = getCoordFromNode(nodeSelected, offsetOf(nodeSelected).left);
-        const nodeIDPage = getPageFromCoords(currentNodeCoords);
-        window.scrollTo(window.innerWidth * nodeIDPage, 0);
-        return currentNodeCoords;
     }
     
     function rectsForSelection() {
@@ -1328,6 +1204,8 @@
         scrollToVerticalPage,
         waitForLayout,
         highlightSearchOccurrence,
+        searchOccurrencePages,
+        callHighlightURL,
         getVisibleLineRects,
         getPageForElementId,
         scrollToCoordsHorizontal,
@@ -1350,20 +1228,10 @@
         highlightSelection,
         highlightCoords,
         isSelectionBackwards,
-        getNumPages,
         getPageFromCoords,
         getPageFromCoordsVertical,
-        setBookFontSizeHorizontal,
-        getBookFontSize,
-        displayMode,
-        getElementsBetweenTree,
-        getCommonAncestor,
-        highlightSearchResult,
         displayRange,
         checkIfValid,
-        displaySelectionText,
-        setFontFaceHorizontal,
-        getPageForNodeID,
         scrollToFirstPage,
         rectsForSelection,
         clearTextSelection,

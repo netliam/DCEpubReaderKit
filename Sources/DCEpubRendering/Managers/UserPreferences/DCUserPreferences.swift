@@ -7,7 +7,8 @@
 
 import Foundation
 
-final class DCUserPreferences: DCUserPreferencesProtocol {
+/// Keys for the reader settings in user defaults (`UserDefaults` is the preferences store).
+enum DCUserPreferences {
 
     enum CacheKey: String {
         case bookOrientation
@@ -25,55 +26,5 @@ final class DCUserPreferences: DCUserPreferencesProtocol {
         case allowSpreads
         case characterSpacing
         case wordSpacing
-    }
-
-    private let userPreferences: DCUserPreferencesProtocol
-
-    init(userPreferences: DCUserPreferencesProtocol) {
-        self.userPreferences = userPreferences
-    }
-
-    func setValue(key: CacheKey, type: Any) {
-        userPreferences.setValue(key: key, type: type)
-    }
-
-    func getFontSize() -> DCFontSize {
-        userPreferences.getFontSize()
-    }
-
-    func getFontFamily() -> DCFontFamily {
-        userPreferences.getFontFamily()
-    }
-
-    func getTheme() -> DCReaderTheme {
-        userPreferences.getTheme()
-    }
-
-    func getFollowsSystemAppearance() -> Bool {
-        userPreferences.getFollowsSystemAppearance()
-    }
-
-    func getBookOrientation() -> DCBookrOrientation {
-        userPreferences.getBookOrientation()
-    }
-
-    func getPageTransition() -> DCPageTransition {
-        userPreferences.getPageTransition()
-    }
-
-    func getLineFocus() -> Bool {
-        userPreferences.getLineFocus()
-    }
-
-    func getLineFocusStyle() -> DCLineFocusStyle {
-        userPreferences.getLineFocusStyle()
-    }
-
-    func getTextLayout() -> DCTextLayout {
-        userPreferences.getTextLayout()
-    }
-
-    func getRotationLock() -> Bool {
-        userPreferences.getRotationLock()
     }
 }

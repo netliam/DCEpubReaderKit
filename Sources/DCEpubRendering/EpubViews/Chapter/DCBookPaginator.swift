@@ -133,13 +133,13 @@ final class DCBookPaginator {
                 _ = try? await webView.evaluateJavaScriptAsync("applyHorizontalPagination()")
                 await webView.waitForLayout()
             }
-            for place in byChapter[spineIndex] ?? [] {
-                guard !Task.isCancelled else { return }
-                let script = "highlightSearchOccurrence(\(Self.jsLiteral(place.query)), \(place.occurrence), \(layout.isVertical))"
-                let raw = try? await webView.evaluateJavaScriptAsync(script)
-                // Take the mark out again so it can't shift the next match.
-                _ = try? await webView.evaluateJavaScriptAsync(Self.clearSearchMarks)
-                if let page = Int(raw ?? ""), page >= 0 {
+            // One call per chapter and query: the page of every match at once.
+            for (query, places) in Dictionary(grouping: byChapter[spineIndex] ?? [], by: \.query) {
+                let occurrences = places.map(\.occurrence)
+                let script = "searchOccurrencePages(\(Self.jsLiteral(query)), \(occurrences), \(layout.isVertical))"
+                guard let raw = try? await webView.evaluateJavaScriptAsync(script),
+                      let pages = try? JSONDecoder().decode([Int].self, from: Data(raw.utf8)) else { continue }
+                for (place, page) in zip(places, pages) where page >= 0 {
                     searchPages[place] = page
                 }
             }
@@ -148,17 +148,6 @@ final class DCBookPaginator {
         }
     }
 
-    private static let clearSearchMarks = """
-    (function () {
-        document.querySelectorAll('.highlight_search').forEach(function (s) {
-            const parent = s.parentNode;
-            while (s.firstChild) parent.insertBefore(s.firstChild, s);
-            parent.removeChild(s);
-            parent.normalize();
-        });
-        return 'ok';
-    })()
-    """
 
     private func run(layout: Layout, appearance: DCReaderAppearance) async {
         let webView = WKWebView(frame: CGRect(origin: .zero, size: layout.pageSize),
