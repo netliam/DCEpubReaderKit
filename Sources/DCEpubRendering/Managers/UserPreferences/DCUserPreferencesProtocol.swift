@@ -20,6 +20,8 @@ protocol DCUserPreferencesProtocol {
     func getLineFocusStyle() -> DCLineFocusStyle
     /// Line spacing, margins and justification.
     func getTextLayout() -> DCTextLayout
+    /// Whether the reader keeps the orientation it was in.
+    func getRotationLock() -> Bool
 }
 
 extension UserDefaults: DCUserPreferencesProtocol {
@@ -124,6 +126,10 @@ extension UserDefaults: DCUserPreferencesProtocol {
         // Justified unless turned off.
         layout.justified = object(forKey: Key.justifyText.rawValue) as? Bool ?? true
         return layout
+    }
+
+    func getRotationLock() -> Bool {
+        bool(forKey: DCUserPreferences.CacheKey.rotationLock.rawValue)
     }
 }
 

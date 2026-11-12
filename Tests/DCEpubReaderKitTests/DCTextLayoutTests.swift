@@ -54,3 +54,33 @@ struct DCTextLayoutTests {
         #expect(reader.readerConfigId(for: 0) != scrolling)
     }
 }
+
+/// Rotation lock: the setting and the orientation it locks to.
+@MainActor
+@Suite("Rotation lock")
+struct DCRotationLockTests {
+    @Test func locksToTheOrientationOnScreen() {
+        #expect(DCReaderOrientationLock.mask(for: .portrait) == .portrait)
+        #expect(DCReaderOrientationLock.mask(for: .landscapeLeft) == .landscapeLeft)
+        #expect(DCReaderOrientationLock.mask(for: .landscapeRight) == .landscapeRight)
+        #expect(DCReaderOrientationLock.mask(for: .unknown) == .portrait)
+    }
+
+    @Test func settingIsStoredAndUnlockedByDefault() throws {
+        let defaults = try #require(UserDefaults(suiteName: "DCRotationLockTests-\(UUID().uuidString)"))
+        #expect(defaults.getRotationLock() == false)
+        defaults.setValue(key: .rotationLock, type: true)
+        #expect(defaults.getRotationLock())
+    }
+
+    @Test func closingTheReaderUnlocks() throws {
+        let url = try #require(Bundle.module.url(forResource: "MinimalEPUB", withExtension: nil, subdirectory: "Fixtures"))
+        let preferences = DCUserPreferencesMock()
+        preferences.rotationLock = true
+        let reader = DCReaderViewModel(book: try DCEpubParser.parse(from: url), spineIndex: 0,
+                                       userPreferencesProtocol: preferences, delegate: nil)
+        reader.readerDidAppear()
+        reader.readerDidDisappear()
+        #expect(DCReaderOrientationLock.supportedOrientations == .all)
+    }
+}

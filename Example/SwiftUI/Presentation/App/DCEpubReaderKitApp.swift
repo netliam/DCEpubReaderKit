@@ -10,6 +10,8 @@ import SwiftUI
 @main
 struct DCEpubReaderKitApp: App {
 
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     init () {
         RealmHelper().applyMigrations()
         print("----------------------------------------------------------------")

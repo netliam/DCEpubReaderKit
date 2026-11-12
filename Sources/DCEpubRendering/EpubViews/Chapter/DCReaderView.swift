@@ -74,6 +74,7 @@ public struct DCReaderView: View {
         }
         .onAppear {
             viewModel.systemIsDark = colorScheme == .dark
+            viewModel.readerDidAppear()
         }
         .onChange(of: colorScheme) { newValue in
             viewModel.systemIsDark = newValue == .dark

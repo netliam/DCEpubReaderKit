@@ -30,6 +30,7 @@
 		728C60A72F3637F100F6DC6C /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728C60812F3637F100F6DC6C /* Utils.swift */; };
 		728C60A82F3637F100F6DC6C /* EpubFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728C60802F3637F100F6DC6C /* EpubFileManager.swift */; };
 		728C60A92F3637F100F6DC6C /* DCEpubReaderKitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728C608B2F3637F100F6DC6C /* DCEpubReaderKitApp.swift */; };
+		D1A0E5F22F40000100A1B2C3 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0E5F12F40000100A1B2C3 /* AppDelegate.swift */; };
 		728C60AC2F36383C00F6DC6C /* DCEpubReaderKit in Frameworks */ = {isa = PBXBuildFile; productRef = 728C60AB2F36383C00F6DC6C /* DCEpubReaderKit */; };
 		728C60FA2F3638AA00F6DC6C /* RealmSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 728C60F92F3638AA00F6DC6C /* RealmSwift */; };
 		728C60FD2F3638B700F6DC6C /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 728C60FC2F3638B700F6DC6C /* ZIPFoundation */; };
@@ -78,6 +79,7 @@
 		728C60872F3637F100F6DC6C /* MainViewBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewBuilder.swift; sourceTree = "<group>"; };
 		728C60882F3637F100F6DC6C /* MainViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewModel.swift; sourceTree = "<group>"; };
 		728C608B2F3637F100F6DC6C /* DCEpubReaderKitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DCEpubReaderKitApp.swift; sourceTree = "<group>"; };
+		D1A0E5F12F40000100A1B2C3 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		728C608E2F3637F100F6DC6C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		728C60902F3637F100F6DC6C /* FileHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileHelper.swift; sourceTree = "<group>"; };
 		728C614A2F3643D900F6DC6C /* UseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseCase.swift; sourceTree = "<group>"; };
@@ -257,6 +259,7 @@
 			children = (
 				728C608A2F3637F100F6DC6C /* Presentation */,
 				728C608B2F3637F100F6DC6C /* DCEpubReaderKitApp.swift */,
+				D1A0E5F12F40000100A1B2C3 /* AppDelegate.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -419,6 +422,7 @@
 				728C60A72F3637F100F6DC6C /* Utils.swift in Sources */,
 				728C60A82F3637F100F6DC6C /* EpubFileManager.swift in Sources */,
 				728C60A92F3637F100F6DC6C /* DCEpubReaderKitApp.swift in Sources */,
+				D1A0E5F22F40000100A1B2C3 /* AppDelegate.swift in Sources */,
 				B7C3FE63A32F42EBB776B0D8 /* BookHighlightDatabase.swift in Sources */,
 				91B23109FAE740CB989C0196 /* BookHighlightStore.swift in Sources */,
 				62AB2F3723B742DAB3F2D235 /* BookHighlightRepository.swift in Sources */,

@@ -19,6 +19,7 @@ final class DCReaderSettingsViewModel: ObservableObject {
     @Binding var lineFocus: Bool
     @Binding var lineFocusStyle: String
     @Binding var textLayout: DCTextLayout
+    @Binding var rotationLock: Bool
 
     /// Whether the system is in dark mode, to preview the theme tiles in the palette that will be used.
     let systemIsDark: Bool
@@ -35,6 +36,7 @@ final class DCReaderSettingsViewModel: ObservableObject {
          lineFocus: Binding<Bool>,
          lineFocusStyle: Binding<String>,
          textLayout: Binding<DCTextLayout>,
+         rotationLock: Binding<Bool>,
          systemIsDark: Bool,
          userPreferences: DCUserPreferencesProtocol) {
         self._fontSize = fontSize
@@ -46,6 +48,7 @@ final class DCReaderSettingsViewModel: ObservableObject {
         self._lineFocus = lineFocus
         self._lineFocusStyle = lineFocusStyle
         self._textLayout = textLayout
+        self._rotationLock = rotationLock
         self.systemIsDark = systemIsDark
         self.userPreferences = userPreferences
     }
@@ -122,6 +125,11 @@ final class DCReaderSettingsViewModel: ObservableObject {
 
     var selectedLineFocusStyle: DCLineFocusStyle {
         DCLineFocusStyle(rawValue: lineFocusStyle) ?? .guide
+    }
+
+    func setRotationLock(_ locked: Bool) {
+        userPreferences.setValue(key: .rotationLock, type: locked)
+        rotationLock = locked
     }
 
     // MARK: Text layout

@@ -21,6 +21,7 @@ final class DCUserPreferences: DCUserPreferencesProtocol {
         case lineSpacing
         case pageMargins
         case justifyText
+        case rotationLock
     }
 
     private let userPreferences: DCUserPreferencesProtocol
@@ -67,5 +68,9 @@ final class DCUserPreferences: DCUserPreferencesProtocol {
 
     func getTextLayout() -> DCTextLayout {
         userPreferences.getTextLayout()
+    }
+
+    func getRotationLock() -> Bool {
+        userPreferences.getRotationLock()
     }
 }

@@ -109,6 +109,17 @@ struct DCReaderSettingsView: View {
             .accessibilityHint("Switches between turning pages and scrolling")
 
             Button {
+                viewModel.setRotationLock(!viewModel.rotationLock)
+            } label: {
+                Image(systemName: viewModel.rotationLock ? "lock.rotation" : "lock.open.rotation")
+                    .font(.system(size: 18, weight: .medium))
+                    .frame(maxWidth: .infinity, minHeight: Constants.controlHeight)
+                    .foregroundStyle(viewModel.rotationLock ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+            }
+            .accessibilityLabel("Rotation Lock")
+            .accessibilityValue(viewModel.rotationLock ? "On" : "Off")
+
+            Button {
                 viewModel.toggleFollowsSystemAppearance()
             } label: {
                 Image(systemName: viewModel.followsSystemAppearance ? "moon.stars.fill" : "moon.stars")
@@ -232,6 +243,10 @@ struct DCReaderCustomizeView: View {
                     get: { viewModel.isScrolling },
                     set: { viewModel.setScrolling($0) }
                 ))
+                Toggle("Lock Rotation", isOn: Binding(
+                    get: { viewModel.rotationLock },
+                    set: { viewModel.setRotationLock($0) }
+                ))
                 if !viewModel.isScrolling {
                     Picker("Page Turn", selection: Binding(
                         get: { viewModel.selectedTransition },
@@ -314,6 +329,7 @@ enum DCScreenBrightness {
         lineFocus: .constant(false),
         lineFocusStyle: .constant(DCLineFocusStyle.guide.rawValue),
         textLayout: .constant(DCTextLayout()),
+        rotationLock: .constant(false),
         systemIsDark: true,
         userPreferences: DCUserPreferencesMock()
     )

@@ -16,6 +16,10 @@ final class DCReaderViewModel: ObservableObject {
     @Published var textFont: String
     /// Line spacing, margins and justification.
     @Published var textLayout: DCTextLayout
+    /// Rotation lock (see `DCReaderOrientationLock`); applied when it changes and while the reader is open.
+    @Published var rotationLock: Bool {
+        didSet { if rotationLock != oldValue { DCReaderOrientationLock.setLocked(rotationLock) } }
+    }
     @Published var theme: String
     @Published var followsSystemAppearance: Bool
     /// Mirrors the system appearance (set by the view from its color scheme).
@@ -123,6 +127,7 @@ final class DCReaderViewModel: ObservableObject {
         self.textSize = userPreferencesProtocol.getFontSize().size
         self.textFont = userPreferencesProtocol.getFontFamily().name
         self.textLayout = userPreferencesProtocol.getTextLayout()
+        self.rotationLock = userPreferencesProtocol.getRotationLock()
         self.theme = userPreferencesProtocol.getTheme().rawValue
         self.followsSystemAppearance = userPreferencesProtocol.getFollowsSystemAppearance()
         self.orientation = userPreferencesProtocol.getBookOrientation().rawValue
@@ -890,8 +895,16 @@ final class DCReaderViewModel: ObservableObject {
         }
     }
 
+    func readerDidAppear() {
+        if rotationLock {
+            DCReaderOrientationLock.setLocked(true)
+        }
+    }
+
     func readerDidDisappear() {
         paginator.cancel()
+        // The lock is for reading; the rest of the app turns freely.
+        DCReaderOrientationLock.setLocked(false)
     }
 
     func registerChapterViewModel(_ viewModel: DCChapterWebViewModel, for index: Int) {
