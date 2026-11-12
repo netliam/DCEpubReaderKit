@@ -57,6 +57,15 @@ struct DCSelectionMenuTests {
         #expect(kept == ["Look Up", "Translate"])
     }
 
+    @Test @MainActor func mergedHighlightsKeepTheirNotesInOrder() {
+        func mark(_ note: String) -> DCHighlight {
+            DCHighlight(uuid: UUID().uuidString, bookId: "b", chapterId: "c", spineIndex: 0,
+                        type: .note, text: "t", coords: "1|0", note: note)
+        }
+        #expect(DCWebView.mergedNote([mark("First."), mark("  "), mark("Second.")]) == "First.\n\nSecond.")
+        #expect(DCWebView.mergedNote([]) == "")
+    }
+
     @Test @MainActor func searchFromTheMenuOpensTheBookSearch() throws {
         let url = try #require(Bundle.module.url(forResource: "MinimalEPUB", withExtension: nil, subdirectory: "Fixtures"))
         let book = try DCEpubParser.parse(from: url)
@@ -317,6 +326,38 @@ extension WebKitBackedTests {
             let result = try await webView.evaluateJavaScript("highlightSelectionInPlace('highlight-yellow', 'x')")
             #expect(result as? String == nil)
             #expect(try await drawn("x", in: webView) == nil)
+        }
+
+        @Test func overlappingSelectionMergesWithTheHighlightsItTouches() async throws {
+            let webView = try await loadPage()
+            let beta = try await highlight("beta", style: .green, in: webView)
+            let gammaDelta = try await { () async throws -> Saved in
+                try await select(from: "gamma", to: "delta", in: webView)
+                return try await highlightSelection(style: .pink, in: webView)
+            }()
+
+            // A selection from "Alpha" into "gamma" touches both.
+            try await select(from: "Alpha", to: "gam", in: webView)
+            let raw = try #require(try await webView.evaluateJavaScript("expandSelectionOverHighlights()") as? String)
+            let removed = try JSONDecoder().decode([String].self, from: Data(raw.utf8))
+            #expect(Set(removed) == [beta.uuid, gammaDelta.uuid])
+            let merged = try await highlightSelection(style: .yellow, in: webView)
+            #expect(merged.text == "Alpha beta gamma delta", "widened to cover both")
+            #expect(try await drawn(merged.uuid, in: webView) == "highlight-yellow:Alpha beta gamma delta")
+            #expect(try await drawn(beta.uuid, in: webView) == nil)
+            #expect(try await drawn(gammaDelta.uuid, in: webView) == nil)
+
+            // It redraws in place from its saved coords.
+            let reopened = try await loadPage()
+            try await redraw([merged], in: reopened)
+            #expect(try await drawn(merged.uuid, in: reopened) == "highlight-yellow:Alpha beta gamma delta")
+        }
+
+        @Test func selectionWithoutHighlightsIsLeftAlone() async throws {
+            let webView = try await loadPage()
+            try await select(from: "beta", to: "gamma", in: webView)
+            #expect(try await webView.evaluateJavaScript("expandSelectionOverHighlights()") as? String == "[]")
+            #expect(try await webView.evaluateJavaScript("window.getSelection().toString()") as? String == "beta gamma")
         }
 
         @Test func deletingRestoresThePageForLaterCoords() async throws {

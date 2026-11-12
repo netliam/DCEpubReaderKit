@@ -901,6 +901,67 @@
         return range.collapsed ? null : range;
     }
     
+    // A point as a character offset into all of the body's text, which unwrapping highlights
+    // doesn't change (unlike node references).
+    function textOffset(node, offset) {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        let total = 0, n;
+        while ((n = walker.nextNode())) {
+            if (n === node) return total + offset;
+            total += n.nodeValue.length;
+        }
+        return total;
+    }
+
+    function pointAtTextOffset(target, isEnd) {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        let total = 0, n, last = null;
+        while ((n = walker.nextNode())) {
+            const length = n.nodeValue.length;
+            // An end on a node boundary stays in the earlier node; a start moves into the later one.
+            if (isEnd ? target <= total + length : target < total + length) return [n, target - total];
+            total += length;
+            last = n;
+        }
+        return last ? [last, last.nodeValue.length] : null;
+    }
+
+    // Merging (like Books): when the selection overlaps highlights, removes them and widens the
+    // selection to cover them too, so the new highlight replaces them. Returns the removed uuids
+    // as JSON ('[]' when there are none).
+    function expandSelectionOverHighlights() {
+        const range = normalizedSelectionRange();
+        if (!range) return '[]';
+        const uuids = [];
+        textNodesInRange(range).forEach(function (node) {
+            for (let el = node.parentNode; el && el.nodeType === 1; el = el.parentNode) {
+                const uuid = el.getAttribute && el.getAttribute(HIGHLIGHT_ATTR);
+                if (uuid) { if (uuids.indexOf(uuid) < 0) uuids.push(uuid); break; }
+            }
+        });
+        if (!uuids.length) return '[]';
+        let start = textOffset(range.startContainer, range.startOffset);
+        let end = textOffset(range.endContainer, range.endOffset);
+        uuids.forEach(function (uuid) {
+            const parts = highlightParts(uuid);
+            if (!parts.length) return;
+            const first = parts[0], last = parts[parts.length - 1];
+            start = Math.min(start, textOffset(first.firstChild || first, 0));
+            const lastText = last.lastChild || last;
+            end = Math.max(end, textOffset(lastText, (lastText.nodeValue || '').length));
+        });
+        uuids.forEach(removeHighlightById);
+        const a = pointAtTextOffset(start, false), b = pointAtTextOffset(end, true);
+        if (!a || !b) return JSON.stringify(uuids);
+        const merged = document.createRange();
+        merged.setStart(a[0], a[1]);
+        merged.setEnd(b[0], b[1]);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(merged);
+        return JSON.stringify(uuids);
+    }
+
     // Highlights the selection with `cls` as `uuid`. Returns the uuid, or null if it couldn't.
     function highlightSelectionInPlace(cls, uuid) {
         const range = normalizedSelectionRange();
@@ -1253,6 +1314,7 @@
         normalizedSelectionRange,
         wrapRange,
         highlightSelectionInPlace,
+        expandSelectionOverHighlights,
         setHighlightStyleById,
         setHighlightNoteById,
         removeHighlightById,

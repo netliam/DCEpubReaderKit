@@ -134,10 +134,11 @@ extension DCWebView {
         }
     }
 
-    /// Draws and saves the selection, which may span paragraphs. `nil` when nothing is selected
-    /// or the selection overlaps an existing highlight.
+    /// Draws and saves the selection, which may span paragraphs. Highlights it overlaps are merged
+    /// into it, notes and all. `nil` when nothing is selected.
     @discardableResult
     private func saveSelection(type: DCHighlight.MarkType, style: DCHighlightStyle) async -> DCHighlight? {
+        let merged = await mergeOverlappedHighlights()
         // Coords first: drawing the highlight splits the text nodes they're taken from.
         guard let coords = await getCoordsFromSelection(),
               let selectedText = await getSelectedText()?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -145,17 +146,22 @@ extension DCWebView {
               let uuid = await highlightSelection(cssClass: style.cssClass, uuid: UUID().uuidString) else {
             return nil
         }
+        let note = Self.mergedNote(merged)
         let highlight = DCHighlight(
             uuid: uuid,
             bookId: viewModel.currentBookId,
             chapterId: viewModel.currentChapterId,
             spineIndex: viewModel.currentSpineIndex,
-            type: type,
+            type: note.isEmpty ? type : .note,
             text: selectedText,
             coords: coords,
+            note: note,
             style: style
         )
         await viewModel.saveHighlight(highlight)
+        if !note.isEmpty {
+            await updateDrawnHighlight(highlight)
+        }
         await clearJSSelection()
         return highlight
     }
@@ -211,6 +217,27 @@ extension DCWebView {
 
     private func getRectsFromSelection() async -> String? {
         try? await self.evaluateJavaScriptAsync(JSMethod.rectsForSelection.rawValue) as? String
+    }
+
+    /// Widens the selection over the highlights it overlaps and deletes them (see
+    /// `expandSelectionOverHighlights` in EpubUtil.js). Returns them, in reading order.
+    private func mergeOverlappedHighlights() async -> [DCHighlight] {
+        guard let raw = try? await evaluateJavaScriptAsync("expandSelectionOverHighlights()"),
+              let uuids = try? JSONDecoder().decode([String].self, from: Data(raw.utf8)),
+              !uuids.isEmpty else { return [] }
+        let saved = await viewModel.loadHighlights()
+        let merged = uuids.compactMap { uuid in saved.first { $0.uuid == uuid } }
+        for uuid in uuids {
+            await viewModel.deleteHighlight(uuid: uuid)
+        }
+        return merged
+    }
+
+    /// The notes of merged highlights, kept in reading order.
+    static func mergedNote(_ highlights: [DCHighlight]) -> String {
+        highlights.map { $0.note.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n\n")
     }
 
     private func getCoordsFromSelection() async -> String? {
