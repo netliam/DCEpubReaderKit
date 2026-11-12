@@ -49,59 +49,79 @@ enum DCFontFamily: String {
     case lato
     case lora
     case raleway
+    // Fonts that come with iOS, as Books offers.
+    case athelas
+    case charter
+    case georgia
+    case iowan
+    case newYork
+    case palatino
+    case sanFrancisco
+    case seravek
 
     var name: String {
         switch self {
-        case .original:
-            "Original"
-        case .andada:
-            "AndadaPro"
-        case .lato:
-            "Lato"
-        case .lora:
-            "Lora"
-        case .raleway:
-            "Raleway"
+        case .original: "Original"
+        case .andada: "AndadaPro"
+        case .lato: "Lato"
+        case .lora: "Lora"
+        case .raleway: "Raleway"
+        case .athelas: "Athelas"
+        case .charter: "Charter"
+        case .georgia: "Georgia"
+        case .iowan: "Iowan"
+        case .newYork: "New York"
+        case .palatino: "Palatino"
+        case .sanFrancisco: "San Francisco"
+        case .seravek: "Seravek"
         }
     }
 
     var font: Font {
-        switch self {
-        case .original:
-            Font.system(size: 12)
-        case .andada:
-            Font.fontType(.andadaPro(12))
-        case .lato:
-            Font.fontType(.lato(12))
-        case .lora:
-            Font.fontType(.lora(12))
-        case .raleway:
-            Font.fontType(.raleway(12))
-        }
+        font(size: 12)
     }
 
     /// The font at body size, for the font list in Customize.
     var previewFont: Font {
+        font(size: 17)
+    }
+
+    private func font(size: CGFloat) -> Font {
         switch self {
-        case .original:
-            Font.body
-        case .andada:
-            Font.fontType(.andadaPro(17))
-        case .lato:
-            Font.fontType(.lato(17))
-        case .lora:
-            Font.fontType(.lora(17))
-        case .raleway:
-            Font.fontType(.raleway(17))
+        case .original: size == 12 ? Font.system(size: size) : Font.body
+        case .andada: Font.fontType(.andadaPro(size))
+        case .lato: Font.fontType(.lato(size))
+        case .lora: Font.fontType(.lora(size))
+        case .raleway: Font.fontType(.raleway(size))
+        case .athelas: Font.custom("Athelas-Regular", size: size)
+        case .charter: Font.custom("Charter-Roman", size: size)
+        case .georgia: Font.custom("Georgia", size: size)
+        case .iowan: Font.custom("IowanOldStyle-Roman", size: size)
+        case .newYork: Font.system(size: size, design: .serif)
+        case .palatino: Font.custom("Palatino-Roman", size: size)
+        case .sanFrancisco: Font.system(size: size)
+        case .seravek: Font.custom("Seravek", size: size)
+        }
+    }
+
+    /// The CSS font stack for fonts the system provides; the bundled ones are in Style.css.
+    var systemFontStack: String? {
+        switch self {
+        case .original, .andada, .lato, .lora, .raleway: nil
+        case .athelas: #""Athelas", serif"#
+        case .charter: #""Charter", serif"#
+        case .georgia: #"Georgia, serif"#
+        case .iowan: #""Iowan Old Style", serif"#
+        case .newYork: #"ui-serif, "New York", serif"#
+        case .palatino: #"Palatino, "Palatino Linotype", serif"#
+        case .sanFrancisco: #"-apple-system, system-ui, sans-serif"#
+        case .seravek: #"Seravek, sans-serif"#
         }
     }
 
     static let allCases: [DCFontFamily] = [
-        .original,
-        .andada,
-        .lato,
-        .lora,
-        .raleway
+        .original, .athelas, .charter, .georgia, .iowan, .newYork, .palatino, .sanFrancisco, .seravek,
+        .andada, .lato, .lora, .raleway
     ]
 }
 
@@ -308,10 +328,20 @@ struct DCTextLayout: Equatable, Sendable {
     var justified: Bool = true
     /// Two columns side by side on wide landscape pages (Books' "Allow Multiple Columns").
     var allowsSpreads: Bool = true
+    /// Extra space between letters and between words, as steps (0 is the book's own).
+    var characterSpacing: Int = 0
+    var wordSpacing: Int = 0
+
+    static let spacingSteps = 0...4
+
+    /// `letter-spacing` for a step, in em.
+    static func characterSpacingEm(_ step: Int) -> Double { Double(step) * 0.02 }
+    /// `word-spacing` for a step, in em.
+    static func wordSpacingEm(_ step: Int) -> Double { Double(step) * 0.1 }
 
     /// Part of the layout ids that decide when pages are counted and laid out again.
     var id: String {
-        "\(lineSpacing.rawValue)-\(margins.rawValue)-\(justified ? "justified" : "ragged")-\(allowsSpreads ? "spreads" : "single")"
+        "\(lineSpacing.rawValue)-\(margins.rawValue)-\(justified ? "justified" : "ragged")-\(allowsSpreads ? "spreads" : "single")-c\(characterSpacing)w\(wordSpacing)"
     }
 
     /// The CSS that applies it (margins are native insets around the web view).
@@ -321,6 +351,12 @@ struct DCTextLayout: Equatable, Sendable {
             // Headings keep a tighter spacing, as books set them.
             rules.append("html body, html body :where(p, div, li, blockquote, dd, dt, td, span) { line-height: \(lineHeight) !important; }")
             rules.append("html body :where(h1, h2, h3, h4, h5, h6) { line-height: 1.25 !important; }")
+        }
+        if characterSpacing > 0 {
+            rules.append("html body, html body * { letter-spacing: \(Self.characterSpacingEm(characterSpacing))em !important; }")
+        }
+        if wordSpacing > 0 {
+            rules.append("html body, html body * { word-spacing: \(Self.wordSpacingEm(wordSpacing))em !important; }")
         }
         if !justified {
             // Pagination sets `text-align: justify` inline on <body>; !important wins over it, and

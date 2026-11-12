@@ -144,6 +144,18 @@ final class DCReaderSettingsViewModel: ObservableObject {
         textLayout.margins = margins
     }
 
+    func setCharacterSpacing(_ step: Int) {
+        guard step != textLayout.characterSpacing else { return }
+        userPreferences.setValue(key: .characterSpacing, type: step)
+        textLayout.characterSpacing = step
+    }
+
+    func setWordSpacing(_ step: Int) {
+        guard step != textLayout.wordSpacing else { return }
+        userPreferences.setValue(key: .wordSpacing, type: step)
+        textLayout.wordSpacing = step
+    }
+
     func setAllowsSpreads(_ allowed: Bool) {
         userPreferences.setValue(key: .allowSpreads, type: allowed)
         textLayout.allowsSpreads = allowed

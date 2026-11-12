@@ -57,23 +57,7 @@ extension UserDefaults: DCUserPreferencesProtocol {
     }
 
     func getFontFamily() -> DCFontFamily {
-        guard let fontFamily = string(forKey: DCUserPreferences.CacheKey.fontFamily.rawValue) else {
-            return .original
-        }
-        switch fontFamily {
-        case "original":
-            return .original
-        case "andada":
-            return .andada
-        case "lato":
-            return .lato
-        case "lora":
-            return .lora
-        case "raleway":
-            return .raleway
-        default:
-            return .original
-        }
+        string(forKey: DCUserPreferences.CacheKey.fontFamily.rawValue).flatMap(DCFontFamily.init(rawValue:)) ?? .original
     }
 
     func getTheme() -> DCReaderTheme {
@@ -126,6 +110,9 @@ extension UserDefaults: DCUserPreferencesProtocol {
         // Justified unless turned off.
         layout.justified = object(forKey: Key.justifyText.rawValue) as? Bool ?? true
         layout.allowsSpreads = object(forKey: Key.allowSpreads.rawValue) as? Bool ?? true
+        let steps = DCTextLayout.spacingSteps
+        layout.characterSpacing = min(max(integer(forKey: Key.characterSpacing.rawValue), steps.lowerBound), steps.upperBound)
+        layout.wordSpacing = min(max(integer(forKey: Key.wordSpacing.rawValue), steps.lowerBound), steps.upperBound)
         return layout
     }
 

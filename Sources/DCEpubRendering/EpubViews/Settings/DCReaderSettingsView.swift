@@ -238,6 +238,12 @@ struct DCReaderCustomizeView: View {
                     get: { viewModel.textLayout.justified },
                     set: { viewModel.setJustified($0) }
                 ))
+                spacingSlider("Character Spacing",
+                              value: viewModel.textLayout.characterSpacing,
+                              set: viewModel.setCharacterSpacing)
+                spacingSlider("Word Spacing",
+                              value: viewModel.textLayout.wordSpacing,
+                              set: viewModel.setWordSpacing)
             }
 
             Section("Layout") {
@@ -290,6 +296,26 @@ struct DCReaderCustomizeView: View {
         .modifier(DCClearNavigationBackground())
         .navigationTitle("Customize")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+extension DCReaderCustomizeView {
+    /// A stepped slider from the book's own spacing ("Default") to the widest step.
+    func spacingSlider(_ title: String, value: Int, set: @escaping (Int) -> Void) -> some View {
+        let steps = DCTextLayout.spacingSteps
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(value == 0 ? "Default" : "+\(value)")
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            Slider(value: Binding(get: { Double(value) }, set: { set(Int($0.rounded())) }),
+                   in: Double(steps.lowerBound)...Double(steps.upperBound), step: 1)
+                .accessibilityLabel(title)
+                .accessibilityValue(value == 0 ? "Default" : "\(value) of \(steps.upperBound)")
+        }
     }
 }
 

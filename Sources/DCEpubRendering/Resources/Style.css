@@ -298,6 +298,15 @@ html.redMode .highlight-underline {border-bottom: 2px solid rgba(240, 240, 240, 
 .lato, .lato p, .lato span, .lato div, .lato h1, .lato h2, .lato h3, .lato li, .lato tr { font-family: "Lato", serif !important; }
 .lora, .lora p, .lora span, .lora div, .lora h1, .lora h2, .lora h3, .lora li, .lora tr { font-family: "Lora", serif !important; }
 .raleway, .raleway p, .raleway span, .raleway div, .raleway h1, .raleway h2, .raleway h3, .raleway li, .raleway tr  { font-family: "Raleway", sans-serif !important; }
+/* Fonts that come with iOS (DCFontFamily.systemFontStack). */
+.athelas, .athelas p, .athelas span, .athelas div, .athelas h1, .athelas h2, .athelas h3, .athelas li, .athelas tr { font-family: "Athelas", serif !important; }
+.charter, .charter p, .charter span, .charter div, .charter h1, .charter h2, .charter h3, .charter li, .charter tr { font-family: "Charter", serif !important; }
+.georgia, .georgia p, .georgia span, .georgia div, .georgia h1, .georgia h2, .georgia h3, .georgia li, .georgia tr { font-family: Georgia, serif !important; }
+.iowan, .iowan p, .iowan span, .iowan div, .iowan h1, .iowan h2, .iowan h3, .iowan li, .iowan tr { font-family: "Iowan Old Style", serif !important; }
+.newYork, .newYork p, .newYork span, .newYork div, .newYork h1, .newYork h2, .newYork h3, .newYork li, .newYork tr { font-family: ui-serif, "New York", serif !important; }
+.palatino, .palatino p, .palatino span, .palatino div, .palatino h1, .palatino h2, .palatino h3, .palatino li, .palatino tr { font-family: Palatino, "Palatino Linotype", serif !important; }
+.sanFrancisco, .sanFrancisco p, .sanFrancisco span, .sanFrancisco div, .sanFrancisco h1, .sanFrancisco h2, .sanFrancisco h3, .sanFrancisco li, .sanFrancisco tr { font-family: -apple-system, system-ui, sans-serif !important; }
+.seravek, .seravek p, .seravek span, .seravek div, .seravek h1, .seravek h2, .seravek h3, .seravek li, .seravek tr { font-family: Seravek, sans-serif !important; }
 
 @font-face { /* regular */
     font-family: "Andada";

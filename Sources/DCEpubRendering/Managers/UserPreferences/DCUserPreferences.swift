@@ -23,6 +23,8 @@ final class DCUserPreferences: DCUserPreferencesProtocol {
         case justifyText
         case rotationLock
         case allowSpreads
+        case characterSpacing
+        case wordSpacing
     }
 
     private let userPreferences: DCUserPreferencesProtocol
