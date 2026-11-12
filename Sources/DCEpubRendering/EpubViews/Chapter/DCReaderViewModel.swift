@@ -64,12 +64,25 @@ final class DCReaderViewModel: ObservableObject {
     weak var pagedNavigator: DCPagedReaderNavigating?
     /// Created lazily so books that are never searched don't pay for text extraction. Kept for the
     /// reader's lifetime so the query and results survive closing the search sheet.
-    private(set) lazy var searchViewModel = DCSearchViewModel(
-        engine: DCEpubSearchEngine(book: book),
-        pageNumber: { [weak self] result in self?.bookPage(for: result) }
-    ) { [weak self] result, query in
-        self?.navigate(to: result, query: query)
-    }
+    private(set) lazy var searchViewModel: DCSearchViewModel = {
+        let searchViewModel = DCSearchViewModel(
+            engine: DCEpubSearchEngine(book: book),
+            pageNumber: { [weak self] result in self?.bookPage(for: result) }
+        ) { [weak self] result, query in
+            self?.navigate(to: result, query: query)
+        }
+        searchViewModel.onResults = { [weak self] results, query in
+            self?.paginator.locateSearch(results.map {
+                DCBookPaginator.SearchPlace(query: query, spineIndex: $0.spineIndex, occurrence: $0.occurrence)
+            })
+        }
+        createdSearchViewModel = searchViewModel
+        return searchViewModel
+    }()
+    /// The search view model once it exists, so page updates don't create it.
+    private weak var createdSearchViewModel: DCSearchViewModel?
+    /// Exact pages of the last search's matches (see `DCBookPaginator.locateSearch`).
+    private var searchPages: [DCBookPaginator.SearchPlace: Int] = [:]
     /// Last reported reading position, used to resume when the reader is rebuilt.
     private var lastPosition: (spineIndex: Int, coords: String)?
 
@@ -129,6 +142,10 @@ final class DCReaderViewModel: ObservableObject {
             guard let self else { return }
             self.bookPageCounts = self.paginator.pageCounts
             self.locatedPages = self.paginator.locatedPages
+            if self.searchPages != self.paginator.searchPages {
+                self.searchPages = self.paginator.searchPages
+                self.createdSearchViewModel?.pagesDidChange()
+            }
             if self.paginator.isComplete {
                 self.lastCompleteBookPageCounts = self.paginator.pageCounts
             }
@@ -305,6 +322,8 @@ final class DCReaderViewModel: ObservableObject {
         /// 0-based, in the chapter.
         let pageIndex: Int
         let bookPage: Int?
+        /// The layout `bookPage` was counted in.
+        var layoutId: String = ""
     }
 
     @Published private(set) var backPosition: BackPosition?
@@ -315,16 +334,19 @@ final class DCReaderViewModel: ObservableObject {
         backPosition = BackPosition(spineIndex: currentSelection,
                                     coords: coords,
                                     pageIndex: max(currentPage - 1, 0),
-                                    bookPage: bookPagePosition?.page)
+                                    bookPage: bookPagePosition?.page,
+                                    layoutId: pagedConfigId + orientation)
     }
 
     /// "Back to Page 12", or to the chapter while the book is being counted. `nil` when there's
     /// nowhere to go back to, or the reader is already on that page.
     var backButtonTitle: String? {
         guard let back = backPosition else { return nil }
+        // After a relayout the page number it was saved with is stale; name the chapter instead.
+        let isSameLayout = back.layoutId == pagedConfigId + orientation
         let isOnBackPage = back.spineIndex == currentSelection && back.pageIndex == currentPage - 1
-        if isOnBackPage { return nil }
-        if let page = back.bookPage {
+        if isSameLayout, isOnBackPage { return nil }
+        if let page = back.bookPage, isSameLayout {
             return "Back to Page \(page)"
         }
         return "Back to \(book.chapterTitle(forSpineIndex: back.spineIndex) ?? "Chapter \(back.spineIndex + 1)")"
@@ -637,8 +659,15 @@ final class DCReaderViewModel: ObservableObject {
         return locatedPages[place].flatMap { bookPage(spineIndex: mark.spineIndex, pageIndex: $0) }
     }
 
-    /// Estimated page number of a search match, from where it falls in its chapter.
+    /// Page number of a search match: exact once the paginator has found it, estimated from where
+    /// it falls in its chapter's text until then.
     func bookPage(for result: DCSearchResult) -> Int? {
+        let place = DCBookPaginator.SearchPlace(query: searchViewModel.searchedQuery,
+                                                spineIndex: result.spineIndex,
+                                                occurrence: result.occurrence)
+        if let page = searchPages[place] {
+            return bookPage(spineIndex: result.spineIndex, pageIndex: page)
+        }
         let pages = result.spineIndex == currentSelection ? totalPages : (estimatedChapterPageCount(result.spineIndex) ?? 0)
         guard pages > 0 else { return nil }
         let index = min(pages - 1, Int(result.chapterFraction * Double(pages)))
@@ -770,14 +799,16 @@ final class DCReaderViewModel: ObservableObject {
         navigate(to: .search(query: query, occurrence: result.occurrence), in: result.spineIndex)
     }
 
-    /// Vertical reader: jump now if the chapter is current, else once it loads (see `consumeInitialJump`).
+    /// Vertical reader: jump now if the chapter is loaded (the one on screen, or a neighbour the
+    /// TabView keeps loaded), else once it loads (see `consumeInitialJump`).
     @MainActor
     private func navigate(to jump: DCChapterJump, in spineIndex: Int) {
-        if spineIndex == currentSelection {
-            chapterViewModels[currentSelection]?.jump(to: jump)
-            return
+        if let chapter = chapterViewModels[spineIndex], spineIndex == currentSelection || chapter.isLaidOut {
+            pendingJumpsBySpineIndex[spineIndex] = nil
+            chapter.jump(to: jump)
+        } else {
+            pendingJumpsBySpineIndex[spineIndex] = jump
         }
-        pendingJumpsBySpineIndex[spineIndex] = jump
         currentSelection = spineIndex
     }
 
@@ -838,15 +869,7 @@ final class DCReaderViewModel: ObservableObject {
         } else {
             selection = await chapterViewModels[currentSelection]?.selectedText()
         }
-        var byline = book.bookTitle
-        if let author = book.metadata.creators.first, !author.isEmpty {
-            byline += " by \(author)"
-        }
-        if let selection {
-            shareText = "“\(selection)”\n\n\(byline)"
-        } else {
-            shareText = byline
-        }
+        shareText = book.shareText(quoting: selection)
         showShare = true
     }
 
@@ -879,10 +902,12 @@ extension DCReaderViewModel: DCChapterReaderContextProtocol {
         if let jump = pendingJumpsBySpineIndex.removeValue(forKey: spineIndex) {
             return jump
         }
-        guard spineIndex == self.spineIndex else { return nil }
+        // The chapter on screen reloads after a layout change (mode, text size, spacing): resume at
+        // the last reported position, as the paged reader does, else where the book was opened.
+        guard spineIndex == currentSelection else { return nil }
         guard chapterURL == book.chapterURL(forSpineIndex: spineIndex) else { return nil }
-        guard let initialCoords, !initialCoords.isEmpty else { return nil }
-        return .coords(initialCoords)
+        guard let coords = resumeCoords(for: spineIndex), !coords.isEmpty else { return nil }
+        return .coords(coords)
     }
 
     func showNote(highlight: DCHighlight) {
@@ -929,5 +954,17 @@ extension DCReaderViewModel: DCChapterReaderContextProtocol {
         }
 
         return []
+    }
+}
+
+extension DCEpubBook {
+    /// What Share sends: the quoted passage, if any, then "Title by Author".
+    func shareText(quoting passage: String?) -> String {
+        var byline = bookTitle
+        if let author = metadata.creators.first, !author.isEmpty {
+            byline += " by \(author)"
+        }
+        guard let passage, !passage.isEmpty else { return byline }
+        return "“\(passage)”\n\n\(byline)"
     }
 }

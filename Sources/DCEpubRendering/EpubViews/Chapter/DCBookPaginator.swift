@@ -38,9 +38,19 @@ final class DCBookPaginator {
         let locator: Locator
     }
 
+    /// A search match: the n-th match of `query` in a chapter, as the search engine numbers them.
+    struct SearchPlace: Hashable {
+        let query: String
+        let spineIndex: Int
+        let occurrence: Int
+    }
+
     private(set) var pageCounts: [Int: Int] = [:]
     /// Page (0-based, within its chapter) of every place `locators` asked for, for the current layout.
     private(set) var locatedPages: [LocatedPlace: Int] = [:]
+    /// Page (0-based, within its chapter) of the matches of the last search, for the current layout.
+    /// Found after the search, in a web view of its own (see `locateSearch`).
+    private(set) var searchPages: [SearchPlace: Int] = [:]
     /// Places to find in a chapter; asked when that chapter is laid out.
     var locators: ((Int) -> [Locator])?
     /// Called after each chapter is counted.
@@ -49,7 +59,11 @@ final class DCBookPaginator {
     private let book: DCEpubBook
     private let userPreferences: DCUserPreferencesProtocol
     private var layout: Layout?
+    private var appearance: DCReaderAppearance?
     private var task: Task<Void, Never>?
+    private var searchTask: Task<Void, Never>?
+    /// The matches `locateSearch` was last asked for, located again after a relayout.
+    private var lastSearch: [SearchPlace] = []
 
     init(book: DCEpubBook, userPreferences: DCUserPreferencesProtocol) {
         self.book = book
@@ -64,18 +78,86 @@ final class DCBookPaginator {
         guard layout != self.layout, layout.pageSize.width > 0, layout.pageSize.height > 0 else { return }
         task?.cancel()
         self.layout = layout
+        self.appearance = appearance
         pageCounts = [:]
         locatedPages = [:]
+        searchPages = [:]
         onChange?()
         task = Task { [weak self] in
             await self?.run(layout: layout, appearance: appearance)
         }
+        locateSearch(lastSearch)
     }
 
     func cancel() {
         task?.cancel()
         task = nil
+        searchTask?.cancel()
+        searchTask = nil
     }
+
+    /// Finds the exact page of each search match, replacing the estimate from where the match falls
+    /// in its chapter's text (which is off when images, headings or spacing aren't spread evenly).
+    func locateSearch(_ places: [SearchPlace]) {
+        searchTask?.cancel()
+        lastSearch = places
+        searchPages = [:]
+        guard let layout, let appearance, !places.isEmpty else {
+            onChange?()
+            return
+        }
+        searchTask = Task { [weak self] in
+            await self?.runSearch(places, layout: layout, appearance: appearance)
+        }
+    }
+
+    private func runSearch(_ places: [SearchPlace], layout: Layout, appearance: DCReaderAppearance) async {
+        let webView = WKWebView(frame: CGRect(origin: .zero, size: layout.pageSize),
+                                configuration: WKWebViewConfiguration())
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        let loader = DCPageLoader()
+        webView.navigationDelegate = loader
+
+        let byChapter = Dictionary(grouping: places, by: \.spineIndex)
+        for spineIndex in byChapter.keys.sorted() {
+            guard !Task.isCancelled, let chapterURL = book.chapterURL(forSpineIndex: spineIndex) else { continue }
+            let html = DCChapterHTMLBuilder.html(pathtofile: chapterURL.path,
+                                                 userPreferences: userPreferences,
+                                                 appearance: appearance)
+            guard await loader.load(html, baseURL: chapterURL.deletingLastPathComponent(), in: webView) else { continue }
+            await webView.waitForLayout()
+            if layout.isVertical {
+                _ = try? await webView.evaluateJavaScriptAsync("String(applyVerticalPagination())")
+            } else {
+                _ = try? await webView.evaluateJavaScriptAsync("applyHorizontalPagination()")
+                await webView.waitForLayout()
+            }
+            for place in byChapter[spineIndex] ?? [] {
+                guard !Task.isCancelled else { return }
+                let script = "highlightSearchOccurrence(\(Self.jsLiteral(place.query)), \(place.occurrence), \(layout.isVertical))"
+                let raw = try? await webView.evaluateJavaScriptAsync(script)
+                // Take the mark out again so it can't shift the next match.
+                _ = try? await webView.evaluateJavaScriptAsync(Self.clearSearchMarks)
+                if let page = Int(raw ?? ""), page >= 0 {
+                    searchPages[place] = page
+                }
+            }
+            guard !Task.isCancelled else { return }
+            onChange?()
+        }
+    }
+
+    private static let clearSearchMarks = """
+    (function () {
+        document.querySelectorAll('.highlight_search').forEach(function (s) {
+            const parent = s.parentNode;
+            while (s.firstChild) parent.insertBefore(s.firstChild, s);
+            parent.removeChild(s);
+            parent.normalize();
+        });
+        return 'ok';
+    })()
+    """
 
     private func run(layout: Layout, appearance: DCReaderAppearance) async {
         let webView = WKWebView(frame: CGRect(origin: .zero, size: layout.pageSize),

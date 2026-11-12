@@ -46,4 +46,5 @@ final class DCWebViewModel: DCWebViewModelProtocol {
     var currentBookId: String { router.currentBookId }
     var currentChapterId: String { router.currentChapterId }
     var currentSpineIndex: Int { router.currentSpineIndex }
+    var currentBook: DCEpubBook? { router.currentBook }
 }

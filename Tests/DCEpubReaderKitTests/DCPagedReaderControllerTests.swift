@@ -221,6 +221,44 @@ struct DCPagedReaderControllerTests {
         #expect(paginator.locatedPages[.init(spineIndex: 0, locator: .coords(coords))] == deepPage.pageIndex)
     }
 
+    /// Search results list exact pages: the paginator finds each match where the reader opens it.
+    @Test func searchMatchesAreLocatedOnThePagesTheReaderOpens() async throws {
+        let book = try makeBook()
+        let (controller, window) = makeController(book: book)
+        defer { window.isHidden = true }
+        let first = try #require(controller.currentPage)
+        try await waitUntil { first.isLoaded }
+        let pageSize = try #require(webView(of: first)?.bounds.size)
+
+        let paginator = DCBookPaginator(book: book, userPreferences: DCUserPreferencesMock())
+        paginator.paginate(layout: DCBookPaginator.Layout(pageSize: pageSize, isVertical: false, styleId: "test"),
+                           appearance: Self.appearance)
+        // "Deep" appears once, deep in the chapter; "Ishmael" is on every page, so take a late one.
+        let places: [DCBookPaginator.SearchPlace] = [
+            .init(query: "Deep", spineIndex: 0, occurrence: 0),
+            .init(query: "Ishmael", spineIndex: 0, occurrence: 200)
+        ]
+        paginator.locateSearch(places)
+        try await waitUntil(timeout: 20) { paginator.searchPages.count == places.count }
+
+        for place in places {
+            controller.show(spineIndex: 0, searchQuery: place.query, occurrence: place.occurrence)
+            let page = try #require(controller.currentPage)
+            try await waitUntil { page.isLoaded }
+            #expect(paginator.searchPages[place] == page.pageIndex, "\(place.query) #\(place.occurrence)")
+        }
+    }
+
+    /// Scrolling mode counts a chapter as the screens it takes, not one page per chapter.
+    @Test func scrollingLayoutCountsScreens() async throws {
+        let paginator = DCBookPaginator(book: try makeBook(), userPreferences: DCUserPreferencesMock())
+        paginator.paginate(layout: DCBookPaginator.Layout(pageSize: CGSize(width: 342, height: 700), isVertical: true, styleId: "test"),
+                           appearance: Self.appearance)
+        try await waitUntil(timeout: 20) { paginator.isComplete }
+        #expect((paginator.pageCounts[0] ?? 0) > 3, "a long chapter takes several screens")
+        #expect(paginator.pageCounts[1] == 1)
+    }
+
     @Test func togglingLineFocusUpdatesTheCurrentPageWithoutReloading() async throws {
         let (controller, window) = makeController(book: try makeBook())
         defer { window.isHidden = true }

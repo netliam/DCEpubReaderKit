@@ -88,4 +88,33 @@ struct DCBackPositionTests {
         reader.goBack()
         #expect(reader.backPosition == nil)
     }
+
+    @Test func afterARelayoutTheBackButtonNamesTheChapter() throws {
+        let url = try #require(Bundle.module.url(forResource: "MinimalEPUB", withExtension: nil, subdirectory: "Fixtures"))
+        let book = try DCEpubParser.parse(from: url)
+        let reader = DCReaderViewModel(book: book, spineIndex: 0, userPreferencesProtocol: DCUserPreferencesMock(), delegate: nil)
+        reader.handle(.currentPage(index: 1, totalPages: 3, spineIndex: 0), chapterURL: nil)
+        reader.handle(.coordsFirstNodeOfPage(orientation: .horizontal, spineIndex: 0, coords: "0000001>0000001|0000000", isBookMark: false),
+                      chapterURL: nil)
+        reader.jump(to: .init(spineIndex: 0, pageIndex: 2, bookPage: nil, bookTotal: nil))
+        // The reader reports the page it landed on.
+        reader.handle(.currentPage(index: 3, totalPages: 3, spineIndex: 0), chapterURL: nil)
+        let title = try #require(reader.backButtonTitle)
+        reader.textLayout.lineSpacing = .loose
+        // No page number from the old layout; still somewhere to go back to.
+        let relaidOut = try #require(reader.backButtonTitle)
+        #expect(!relaidOut.contains("Page"))
+        #expect(title.hasPrefix("Back to"))
+    }
+
+    @Test func aReloadedChapterResumesAtTheLastPosition() throws {
+        let url = try #require(Bundle.module.url(forResource: "MinimalEPUB", withExtension: nil, subdirectory: "Fixtures"))
+        let book = try DCEpubParser.parse(from: url)
+        let reader = DCReaderViewModel(book: book, spineIndex: 0, userPreferencesProtocol: DCUserPreferencesMock(), delegate: nil)
+        let chapterURL = try #require(book.chapterURL(forSpineIndex: 0))
+        #expect(reader.consumeInitialJump(for: 0, chapterURL: chapterURL) == nil)
+        reader.handle(.coordsFirstNodeOfPage(orientation: .vertical, spineIndex: 0, coords: "0000001>0000002|0000000", isBookMark: false),
+                      chapterURL: nil)
+        #expect(reader.consumeInitialJump(for: 0, chapterURL: chapterURL) == .coords("0000001>0000002|0000000"))
+    }
 }

@@ -61,6 +61,13 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
 - **Scrubber:** `DCReaderViewModel.scrubTarget(fraction:counts:chapterCount:)` maps 0…1 to a chapter and page. Jumps go through `DCPagedReaderNavigating.show(spineIndex:page:)`, or the new `DCChapterJump.page` in scrolling mode.
 - **Text layout:** `DCTextLayout` (line spacing, margins, justified) is stored under the `lineSpacing`, `pageMargins` and `justifyText` keys. CSS is injected as `<style id="dc-layout">`, and margins are native insets. `textLayout.id` is part of `pagedConfigId`, `readerConfigId` and the paginator's style id, so a change lays the book out and recounts.
 - **Last highlight color:** `DCHighlightStyle.lastUsed` (UserDefaults key `DCLastHighlightStyle`).
+- **Search result pages** are exact: after each search, `DCBookPaginator.locateSearch` lays out each matching chapter off screen and runs `highlightSearchOccurrence` for every match, the same code the reader jumps with. The sheet shows the estimate until then.
+- **Scrolling mode:**
+  - `applyVerticalPagination` returns the number of screens a chapter takes, so the whole-book count and "N of M" work.
+  - A chapter that reloads after a layout change resumes at the last reported position.
+  - Jumps into a neighbouring chapter that's already loaded run straight away. Before, they waited for a load that never came, so they landed at the chapter's top.
+- **Back label:** after a relayout, "Back to Page N" names the chapter instead, because the saved page number belongs to the old layout.
+- **Sharing a passage** (selection or highlight menu) sends the same text as ⋯ → Share: the quote, then "Title by Author" (`DCEpubBook.shareText(quoting:)`).
 
 ## Selection menu (`469d43b`)
 
@@ -82,7 +89,7 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
 
 ## Testing
 
-- Uses Swift Testing (92 tests). WebKit-backed suites are nested under `WebKitBackedTests` (in `DCSearchHighlightJSTests.swift`), which runs serially.
+- Uses Swift Testing (97 tests). WebKit-backed suites are nested under `WebKitBackedTests` (in `DCSearchHighlightJSTests.swift`), which runs serially.
 - Run via `xcodebuild`, because Xcode's in-memory file list can be stale for new files:
 
   ```sh
@@ -118,10 +125,7 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
 
 ## Known issues and ideas for next steps
 
-- Search result page estimates can be off by one.
-- The vertical (scrolling) mode has no whole-book page count, because `applyVerticalPagination` returns a number. This predates the branch. The scrubber, Back, links and text layout were only checked in paged mode.
 - Hidden controls may still be in the accessibility tree.
-- Share from the selection doesn't include the book title (⋯ → Share does).
 - Overlapping highlights are refused, not merged.
 - The note icon sits inline after the highlight. It can shift a paragraph's line breaks slightly, and the highlight color (or underline) runs under it.
 - Footnotes from a separate endnotes file and web links are covered by tests but haven't been tried in the app.

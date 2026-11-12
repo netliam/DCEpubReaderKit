@@ -326,27 +326,19 @@
         return String(Math.max(0, page));
     }
     
+    // Scrolling layout. Returns the number of screens the chapter takes, as a string (the bridge
+    // only reads strings), so the scrolling reader and the whole-book count agree.
     function applyVerticalPagination() {
-        let margin_top = 40;
-        let margin_bottom = 30;
-        
-        let columnGap = 20;
-        let columnGapTop = 40;
-        
-        let stylemargin = 10;
-        
-        var d = document.getElementsByTagName('body')[0];
-        var ourH = window.innerHeight;
-        var ourW = window.innerWidth;
-        var fullH = d.offsetHeight;
-        var pageCount = 1
-        var currentPage = 0;
+        const columnGap = 20;
+        const stylemargin = 10;
+        const d = document.body;
         d.style.webkitColumnGap = `${columnGap}px`;
         d.style.margin = `${stylemargin}px`;
         d.style.webkitColumnCount = 1;
         d.style.textAlign = 'justify';
-        let totalPages = 1;
-        return Math.round(totalPages);
+        const scroller = document.scrollingElement || document.documentElement || d;
+        const pages = Math.ceil((scroller.scrollHeight - 1) / Math.max(1, window.innerHeight));
+        return String(Math.max(1, pages));
     }
     
     function scrollToLastVerticalPage() {

@@ -411,3 +411,17 @@ struct DCNoteColorTests {
         #expect(colored.displayStyle == .green)
     }
 }
+
+/// Share from a selection or a highlight sends the passage with the book's title, like ⋯ → Share.
+@Suite("Sharing a passage")
+struct DCShareTextTests {
+    @Test func quotesThePassageThenTitleAndAuthor() throws {
+        let url = try #require(Bundle.module.url(forResource: "MinimalEPUB", withExtension: nil, subdirectory: "Fixtures"))
+        let book = try DCEpubParser.parse(from: url)
+        var byline = book.bookTitle
+        if let author = book.metadata.creators.first, !author.isEmpty { byline += " by \(author)" }
+        #expect(book.shareText(quoting: "Call me Ishmael.") == "“Call me Ishmael.”\n\n\(byline)")
+        #expect(book.shareText(quoting: nil) == byline)
+        #expect(book.shareText(quoting: "") == byline)
+    }
+}

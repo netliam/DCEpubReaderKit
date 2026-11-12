@@ -518,6 +518,7 @@ extension DCPageWebViewController {
     }
 
     var currentBookId: String { readerContext.bookId }
+    var currentBook: DCEpubBook? { readerContext.currentBook }
     var currentChapterId: String { chapterURL?.lastPathComponent ?? "" }
 }
 
@@ -560,6 +561,7 @@ private final class DCPageRouter: DCWebViewRouterProtocol {
     var currentBookId: String { page?.currentBookId ?? "" }
     var currentChapterId: String { page?.currentChapterId ?? "" }
     var currentSpineIndex: Int { spineIndex }
+    var currentBook: DCEpubBook? { page?.currentBook }
 }
 
 private extension String {

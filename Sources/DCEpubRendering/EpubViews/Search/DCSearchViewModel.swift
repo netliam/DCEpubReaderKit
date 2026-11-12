@@ -30,6 +30,10 @@ final class DCSearchViewModel: ObservableObject {
     @Published private(set) var isSearching: Bool = false
     /// The query the current results belong to (the text field may already have moved on).
     @Published private(set) var searchedQuery: String = ""
+    /// Bumped when exact pages arrive for the results, so their page numbers are redrawn.
+    @Published private(set) var pagesRevision = 0
+    /// Called with every new set of results, so their exact pages can be found.
+    var onResults: (([DCSearchResult], String) -> Void)?
 
     let resultLimit = DCEpubSearchEngine.defaultResultLimit
 
@@ -75,6 +79,10 @@ final class DCSearchViewModel: ObservableObject {
         }
     }
 
+    func pagesDidChange() {
+        pagesRevision += 1
+    }
+
     func select(_ result: DCSearchResult) {
         onSelect(result, searchedQuery)
     }
@@ -96,6 +104,7 @@ final class DCSearchViewModel: ObservableObject {
             sections.append(Self.section(for: current))
         }
         self.sections = sections
+        onResults?(results, query)
     }
 
     private static func section(for results: [DCSearchResult]) -> DCSearchSection {

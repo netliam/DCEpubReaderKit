@@ -188,7 +188,8 @@ extension DCWebView {
             guard let self, let text = await self.selectedText(), let presenter = self.parentViewController else { return }
             let sourceRect = await self.selectionRect() ?? CGRect(x: self.bounds.midX, y: self.bounds.midY, width: 0, height: 0)
             await self.clearJSSelection()
-            let activity = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+            let item = self.viewModel.currentBook?.shareText(quoting: text) ?? text
+            let activity = UIActivityViewController(activityItems: [item], applicationActivities: nil)
             activity.popoverPresentationController?.sourceView = self
             activity.popoverPresentationController?.sourceRect = sourceRect
             presenter.present(activity, animated: true)

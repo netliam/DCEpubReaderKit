@@ -127,7 +127,8 @@ extension DCWebView {
 
     private func share(_ highlight: DCHighlight) {
         guard let presenter = parentViewController else { return }
-        let activity = UIActivityViewController(activityItems: [highlight.text], applicationActivities: nil)
+        let item = viewModel.currentBook?.shareText(quoting: highlight.text) ?? highlight.text
+        let activity = UIActivityViewController(activityItems: [item], applicationActivities: nil)
         activity.popoverPresentationController?.sourceView = self
         activity.popoverPresentationController?.sourceRect = highlightMenu?.rect
             ?? CGRect(x: bounds.midX, y: bounds.midY, width: 0, height: 0)

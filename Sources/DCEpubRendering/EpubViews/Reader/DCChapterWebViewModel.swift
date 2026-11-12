@@ -78,6 +78,7 @@ extension DCChapterWebViewModel: DCWebViewRouterProtocol {
     var currentBookId: String { readerContext.bookId }
     var currentChapterId: String { chapterURL.lastPathComponent }
     var currentSpineIndex: Int { spineIndex }
+    var currentBook: DCEpubBook? { readerContext.currentBook }
 
     func updateCurrentPage(target: Int?) {
         coordinator?.updateCurrentPageInternal(target: target)
@@ -90,6 +91,9 @@ extension DCChapterWebViewModel: DCWebViewRouterProtocol {
     func jump(to jump: DCChapterJump) {
         coordinator?.jump(to: jump)
     }
+
+    /// Whether the chapter has loaded and been paginated (see `consumeInitialJump`).
+    var isLaidOut: Bool { coordinator?.isLaidOut ?? false }
 
     func selectedText() async -> String? {
         await coordinator?.lazyWebView?.selectedText()

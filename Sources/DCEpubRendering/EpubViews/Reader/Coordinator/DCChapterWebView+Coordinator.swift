@@ -248,6 +248,9 @@ extension DCChapterWebView {
             }
         }
 
+        /// Whether the chapter has loaded and been paginated, so a jump can run now.
+        var isLaidOut: Bool { cachedTotalPages > 0 }
+
         func jump(to jump: DCChapterJump) {
             Task { @MainActor [weak self] in
                 guard let self, let webView = self.lazyWebView else { return }

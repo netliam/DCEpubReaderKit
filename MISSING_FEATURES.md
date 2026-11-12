@@ -76,7 +76,4 @@ We have: font family (original, Andada, Lato, Lora, Raleway), 8 text sizes, Bold
 
 ## Known bugs to fix first
 
-- Search result page estimates can be off by one.
-- The vertical (scrolling) mode has no whole-book page count.
-- Share from the selection doesn't include the book title (⋯ → Share does).
-- The newer features (scrubber, Back, links, text layout) were only checked in paged mode, not in the scrolling mode.
+None known. Search result page numbers, scrolling-mode page counts and Share from a selection were fixed after `d76997a`.

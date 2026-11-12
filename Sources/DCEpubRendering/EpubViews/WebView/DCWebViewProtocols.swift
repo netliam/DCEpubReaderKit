@@ -21,6 +21,8 @@ protocol DCWebViewModelProtocol {
     var currentBookId: String { get }
     var currentChapterId: String { get }
     var currentSpineIndex: Int { get }
+    /// The book being read, for sharing a passage with its title.
+    var currentBook: DCEpubBook? { get }
     var refresh: (() -> Void)? { get set }
 }
 
@@ -37,4 +39,6 @@ protocol DCWebViewRouterProtocol {
     var currentBookId: String { get }
     var currentChapterId: String { get }
     var currentSpineIndex: Int { get }
+    /// The book being read, for sharing a passage with its title.
+    var currentBook: DCEpubBook? { get }
 }
