@@ -123,7 +123,8 @@ final class DCBookPaginator {
             guard !Task.isCancelled, let chapterURL = book.chapterURL(forSpineIndex: spineIndex) else { continue }
             let html = DCChapterHTMLBuilder.html(pathtofile: chapterURL.path,
                                                  userPreferences: userPreferences,
-                                                 appearance: appearance)
+                                                 appearance: appearance,
+                                                 fixedLayout: book.isFixedLayout(spineIndex: spineIndex))
             guard await loader.load(html, baseURL: chapterURL.deletingLastPathComponent(), in: webView) else { continue }
             await webView.waitForLayout()
             if layout.isVertical {
@@ -174,7 +175,8 @@ final class DCBookPaginator {
             }
             let html = DCChapterHTMLBuilder.html(pathtofile: chapterURL.path,
                                                  userPreferences: userPreferences,
-                                                 appearance: appearance)
+                                                 appearance: appearance,
+                                                 fixedLayout: book.isFixedLayout(spineIndex: spineIndex))
             guard await loader.load(html, baseURL: chapterURL.deletingLastPathComponent(), in: webView) else {
                 record(1, for: spineIndex)
                 continue

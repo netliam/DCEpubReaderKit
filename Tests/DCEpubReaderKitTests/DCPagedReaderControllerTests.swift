@@ -60,6 +60,68 @@ struct DCPagedReaderControllerTests {
                           resourcesRoot: root)
     }
 
+    /// Two fixed-layout pages (600 × 800, from their viewport) and a reflowable chapter between.
+    private func makeFixedLayoutBook() throws -> DCEpubBook {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let text = root.appendingPathComponent("OEBPS/Text", isDirectory: true)
+        try FileManager.default.createDirectory(at: text, withIntermediateDirectories: true)
+        let page = { (label: String) in
+            """
+            <html><head><meta name="viewport" content="width=600, height=800"/></head>
+            <body style="margin:0"><div id="panel" style="position:absolute; left:0; top:0; width:600px; height:800px; background:#c33">\(label)</div></body></html>
+            """
+        }
+        let bodies = [page("One"), "<html><head></head><body><p>Reflowable.</p></body></html>", page("Two")]
+        var manifest: [DCManifestItem] = []
+        var spine: [DCSpineItem] = []
+        for (index, body) in bodies.enumerated() {
+            let href = "Text/p\(index).xhtml"
+            try body.write(to: root.appendingPathComponent("OEBPS/\(href)"), atomically: true, encoding: .utf8)
+            manifest.append(DCManifestItem(id: "p\(index)", href: href, mediaType: "application/xhtml+xml"))
+            spine.append(DCSpineItem(idref: "p\(index)", linear: true,
+                                     properties: index == 1 ? "rendition:layout-reflowable" : nil))
+        }
+        var metadata = DCOPFMetadata()
+        metadata.renditionLayout = "pre-paginated"
+        return DCEpubBook(packagePath: "OEBPS/content.opf", metadata: metadata, manifest: manifest,
+                          spine: spine, toc: [], resourcesRoot: root)
+    }
+
+    @Test func fixedLayoutPagesAreOnePageScaledToFit() async throws {
+        let book = try makeFixedLayoutBook()
+        #expect(book.isFixedLayout(spineIndex: 0))
+        #expect(!book.isFixedLayout(spineIndex: 1), "the itemref overrides the book")
+        let (controller, window) = makeController(book: book)
+        defer { window.isHidden = true }
+        let page = try #require(controller.currentPage)
+        try await waitUntil { page.isLoaded }
+        #expect(page.pageCount == 1)
+        let webView = try #require(webView(of: page))
+        let raw = try #require(try await webView.evaluateJavaScript("""
+        (function () {
+            const r = document.getElementById('panel').getBoundingClientRect();
+            return JSON.stringify([r.left, r.top, r.width, r.height, window.innerWidth, window.innerHeight]);
+        })()
+        """) as? String)
+        let box = try JSONDecoder().decode([Double].self, from: Data(raw.utf8))
+        let (left, top, width, height, viewWidth, viewHeight) = (box[0], box[1], box[2], box[3], box[4], box[5])
+        // The whole page shows, as large as fits, keeping its 3:4 shape, centered.
+        #expect(abs(width / height - 0.75) < 0.01)
+        // The web view runs one column gap past the text area on the right, which isn't page.
+        let pageWidth = viewWidth - DCReaderChrome.columnGap
+        #expect(abs(width - pageWidth) < 1 || abs(height - viewHeight) < 1)
+        #expect(width <= pageWidth + 1 && height <= viewHeight + 1)
+        #expect(abs(left - (pageWidth - width) / 2) < 1 && abs(top - (viewHeight - height) / 2) < 1)
+    }
+
+    @Test func fixedLayoutPageSizeComesFromItsViewport() {
+        #expect(DCChapterHTMLBuilder.fixedLayoutSize(in: #"<meta name="viewport" content="width=1200, height=1800"/>"#) == (1200, 1800))
+        #expect(DCChapterHTMLBuilder.fixedLayoutSize(in: #"<meta content="width=800,height=600" name="viewport">"#) == (800, 600))
+        #expect(DCChapterHTMLBuilder.fixedLayoutSize(in: #"<svg viewBox="0 0 1000 1500">"#) == (1000, 1500))
+        #expect(DCChapterHTMLBuilder.fixedLayoutSize(in: "<p>none</p>") == (0, 0))
+    }
+
     private func makeController(book: DCEpubBook,
                                 spineIndex: Int = 0,
                                 lineFocus: Bool = false) -> (DCPagedReaderController, UIWindow) {

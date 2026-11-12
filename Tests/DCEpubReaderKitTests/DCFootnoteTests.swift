@@ -199,3 +199,31 @@ extension WebKitBackedTests {
         }
     }
 }
+
+/// Fixed-layout (pre-paginated) books: the layout is read from the package.
+@Suite("Fixed layout parsing")
+struct DCFixedLayoutParsingTests {
+    @Test func readsRenditionLayoutFromMetadataAndItemrefs() throws {
+        let fixture = try #require(Bundle.module.url(forResource: "MinimalEPUB", withExtension: nil, subdirectory: "Fixtures"))
+        let copy = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.copyItem(at: fixture, to: copy)
+        defer { try? FileManager.default.removeItem(at: copy) }
+        let opf = copy.appendingPathComponent("OEBPS/content.opf")
+        var package = try String(contentsOf: opf, encoding: .utf8)
+        package = package
+            .replacingOccurrences(of: "<dc:language>en</dc:language>",
+                                  with: "<dc:language>en</dc:language><meta property=\"rendition:layout\">pre-paginated</meta>")
+            .replacingOccurrences(of: "<itemref idref=\"chapter-one\"/>",
+                                  with: "<itemref idref=\"chapter-one\" properties=\"page-spread-right\"/>")
+        try package.write(to: opf, atomically: true, encoding: .utf8)
+
+        let book = try DCEpubParser.parse(from: copy)
+        #expect(book.metadata.renditionLayout == "pre-paginated")
+        #expect(book.spine.first?.properties == "page-spread-right")
+        #expect(book.isFixedLayout(spineIndex: 0))
+
+        let reflowable = try DCEpubParser.parse(from: fixture)
+        #expect(reflowable.metadata.renditionLayout == nil)
+        #expect(!reflowable.isFixedLayout(spineIndex: 0))
+    }
+}

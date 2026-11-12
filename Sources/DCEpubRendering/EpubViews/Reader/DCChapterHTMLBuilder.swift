@@ -11,9 +11,12 @@ import Foundation
 /// the JS helpers, the viewport and the theme's text style, and tags `<html>` with the user's
 /// font/size classes.
 enum DCChapterHTMLBuilder {
+    /// - Parameter fixedLayout: The chapter is a fixed-layout page: it keeps its own design (no
+    ///   reader stylesheet, theme text color or font classes) and is scaled to fit the screen.
     static func html(pathtofile: String,
                      userPreferences: DCUserPreferencesProtocol,
-                     appearance: DCReaderAppearance) -> String {
+                     appearance: DCReaderAppearance,
+                     fixedLayout: Bool = false) -> String {
         #if SWIFT_PACKAGE
         let bundle = Bundle.module
         #else
@@ -57,6 +60,11 @@ enum DCChapterHTMLBuilder {
         </head>
         """
 
+        if fixedLayout {
+            return fixedLayoutHTML(htmlContent, chapterURLLiteral: chapterURLLiteral,
+                                   scripts: [epubHelper, utils])
+        }
+
         htmlContent = htmlContent.replacingOccurrences(of: "</head>", with: headInject)
 
         let fontName = userPreferences.getFontFamily().rawValue
@@ -67,6 +75,61 @@ enum DCChapterHTMLBuilder {
         }
         return htmlContent
     }
+
+    // MARK: Fixed layout
+
+    /// A fixed-layout page with the reader's scripts and the highlight styles, sized by its own
+    /// viewport (see `applyFixedLayout` in EpubUtil.js).
+    private static func fixedLayoutHTML(_ html: String, chapterURLLiteral: String, scripts: [URL]) -> String {
+        let size = fixedLayoutSize(in: html)
+        // The page's viewport would make the web view zoom it; the reader scales it itself.
+        var html = html.replacingOccurrences(of: #"name\s*=\s*["']viewport["']"#,
+                                             with: "name=\"dc-original-viewport\"",
+                                             options: [.regularExpression, .caseInsensitive])
+        let scriptTags = scripts.map { "<script type='text/javascript' src=\"\($0)\"></script>" }.joined(separator: "\n")
+        let inject = """
+        <script>window.dcChapterURL = \(chapterURLLiteral); window.dcFixedLayout = { width: \(size.width), height: \(size.height) };</script>
+        \(scriptTags)
+        <style>\(fixedLayoutCSS)</style>
+        <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'>
+        </head>
+        """
+        html = html.replacingOccurrences(of: "</head>", with: inject)
+        return html
+    }
+
+    /// The page size a fixed-layout page declares: its viewport `width`/`height`, else an SVG
+    /// `viewBox`. Zero when it has neither; the page is measured instead.
+    static func fixedLayoutSize(in html: String) -> (width: Int, height: Int) {
+        func number(_ pattern: String) -> Int? {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+                  let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+                  let range = Range(match.range(at: 1), in: html) else { return nil }
+            return Double(html[range]).map { Int($0.rounded()) }
+        }
+        let viewport = #"<meta[^>]*name\s*=\s*["']viewport["'][^>]*content\s*=\s*["'][^"']*"#
+        let viewportReversed = #"<meta[^>]*content\s*=\s*["'][^"']*"#
+        if let width = number(viewport + #"width\s*=\s*([0-9.]+)"#) ?? number(viewportReversed + #"width\s*=\s*([0-9.]+)[^>]*name\s*=\s*["']viewport"#),
+           let height = number(viewport + #"height\s*=\s*([0-9.]+)"#) ?? number(viewportReversed + #"height\s*=\s*([0-9.]+)[^>]*name\s*=\s*["']viewport"#) {
+            return (width, height)
+        }
+        if let width = number(#"<svg[^>]*viewBox\s*=\s*["'][-0-9.]+[ ,]+[-0-9.]+[ ,]+([0-9.]+)"#),
+           let height = number(#"<svg[^>]*viewBox\s*=\s*["'][-0-9.]+[ ,]+[-0-9.]+[ ,]+[0-9.]+[ ,]+([0-9.]+)"#) {
+            return (width, height)
+        }
+        return (0, 0)
+    }
+
+    /// Highlights and search marks on fixed-layout pages (the rest of Style.css would change
+    /// the page's design).
+    private static let fixedLayoutCSS = """
+    .highlight-yellow { background: rgba(255, 235, 107, 0.6); }
+    .highlight-green { background: rgba(192, 237, 114, 0.6); }
+    .highlight-blue, .highlight_search { background: rgba(173, 216, 255, 0.6); }
+    .highlight-pink { background: rgba(255, 176, 202, 0.6); }
+    .highlight-purple { background: rgba(214, 184, 245, 0.6); }
+    .highlight-underline { border-bottom: 2px solid #F02814; }
+    """
 
     /// Id of the injected line spacing and justification `<style>`.
     static let layoutStyleId = "dc-layout"

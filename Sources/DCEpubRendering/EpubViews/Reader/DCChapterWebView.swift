@@ -106,7 +106,8 @@ struct DCChapterWebView: UIViewRepresentable {
         if context.coordinator.currentChapterURL != viewModel.chapterURL {
             let htmlContent = DCChapterHTMLBuilder.html(pathtofile: viewModel.chapterURL.path,
                                                         userPreferences: viewModel.userPreferences,
-                                                        appearance: viewModel.appearance)
+                                                        appearance: viewModel.appearance,
+                                                        fixedLayout: viewModel.isFixedLayout)
             webView.loadHTMLString(htmlContent, baseURL: viewModel.chapterURL.deletingLastPathComponent())
             context.coordinator.currentChapterURL = viewModel.chapterURL
             UIView.animate(

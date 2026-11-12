@@ -68,8 +68,36 @@
     // --------------------------------------------------
     // Pagination
     // --------------------------------------------------
+    // A fixed-layout page: its declared size (window.dcFixedLayout, else measured), scaled to fit
+    // the web view and centered. Always one page. `trailingGap`: blank space at the right of the
+    // web view that isn't page (the paged reader's column gap).
+    function applyFixedLayout(trailingGap) {
+        const fx = window.dcFixedLayout || {};
+        const root = document.documentElement;
+        const body = document.body;
+        body.style.margin = body.style.margin || '0';
+        let width = Number(fx.width) || 0, height = Number(fx.height) || 0;
+        if (!width || !height) {
+            width = Math.max(root.scrollWidth, body.scrollWidth, 1);
+            height = Math.max(root.scrollHeight, body.scrollHeight, 1);
+        }
+        const W = window.innerWidth - (trailingGap || 0), H = window.innerHeight;
+        const scale = Math.min(W / width, H / height);
+        const x = (W - width * scale) / 2, y = (H - height * scale) / 2;
+        root.style.transition = 'none';
+        root.style.width = width + 'px';
+        root.style.height = height + 'px';
+        root.style.minWidth = '0';
+        root.style.overflow = 'hidden';
+        root.style.transformOrigin = '0 0';
+        root.style.transform = 'translate(' + x + 'px, ' + y + 'px) scale(' + scale + ')';
+        window.dcFixedLayoutScale = scale;
+        return '1';
+    }
+
     function applyHorizontalPagination() {
         const columnGap = 20;
+        if (window.dcFixedLayout) return applyFixedLayout(columnGap);
         const stylemargin = 0;
 
         const d = document.body;
@@ -155,6 +183,7 @@
 
     // Paged reader helpers. They return Strings because the native bridge only reads String results.
     function getHorizontalPageCount() {
+        if (window.dcFixedLayout) return '1';
         const d = document.scrollingElement || document.documentElement || document.body;
         const pageWidth = window.innerWidth;
         // Subtract 1px so an exact multiple of the page width doesn't round up to an extra page.
@@ -341,6 +370,7 @@
     // Scrolling layout. Returns the number of screens the chapter takes, as a string (the bridge
     // only reads strings), so the scrolling reader and the whole-book count agree.
     function applyVerticalPagination() {
+        if (window.dcFixedLayout) return applyFixedLayout();
         const columnGap = 20;
         const stylemargin = 10;
         const d = document.body;
@@ -1171,6 +1201,7 @@
     // --------------------------------------------------
     const API = {
         applyHorizontalPagination,
+        applyFixedLayout,
         columnsPerPage,
         scrollToLastHorizontalPage,
         scrollToFirstHorizontalPage,

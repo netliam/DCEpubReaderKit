@@ -157,7 +157,7 @@ extension DCOPFParser {
         guard inSpine, lowerName == "itemref" else { return }
         let idref = attributes["idref"] ?? ""
         let linear = (attributes["linear"] ?? "yes").lowercased() != "no"
-        pkg.spine.append(DCSpineItem(idref: idref, linear: linear))
+        pkg.spine.append(DCSpineItem(idref: idref, linear: linear, properties: attributes["properties"]))
     }
 
     private func handleGuideStartIfNeeded(lowerName: String,
@@ -242,6 +242,13 @@ extension DCOPFParser {
         defer { currentMetaProperty = nil }
 
         guard let property = currentMetaProperty else { return }
+
+        if property == "rendition:layout" {
+            let layout = textBuffer.trimmed()
+            if !layout.isEmpty {
+                pkg.metadata.renditionLayout = layout
+            }
+        }
 
         if property == "dcterms:modified" {
             let modified = textBuffer.trimmed()

@@ -286,7 +286,8 @@ final class DCPageWebViewController: UIViewController {
         recycled = nil
         let html = DCChapterHTMLBuilder.html(pathtofile: chapterURL.path,
                                              userPreferences: userPreferences,
-                                             appearance: appearance)
+                                             appearance: appearance,
+                                             fixedLayout: readerContext.currentBook.isFixedLayout(spineIndex: spineIndex))
         webView.loadHTMLString(html, baseURL: chapterURL.deletingLastPathComponent())
     }
 

@@ -116,6 +116,16 @@ extension DCEpubBook {
         return resourceURL(forHref: item.href)
     }
 
+    /// Whether a chapter is fixed layout (one designed page, like a comic or picture book page):
+    /// its itemref says so, or else the book does.
+    public func isFixedLayout(spineIndex: Int) -> Bool {
+        guard spine.indices.contains(spineIndex) else { return false }
+        let properties = (spine[spineIndex].properties ?? "").split(separator: " ")
+        if properties.contains("rendition:layout-pre-paginated") { return true }
+        if properties.contains("rendition:layout-reflowable") { return false }
+        return metadata.renditionLayout?.lowercased() == "pre-paginated"
+    }
+
     /// The spine index of the chapter at `url` (a file URL; any `#fragment` is ignored).
     public func spineIndex(forChapterURL url: URL) -> Int? {
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)

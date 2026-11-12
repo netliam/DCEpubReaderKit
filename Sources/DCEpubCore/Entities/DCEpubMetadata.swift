@@ -16,6 +16,9 @@ public struct DCOPFMetadata: Sendable {
     public var publisher: String?
     public var descriptionHTML: String?
     public var coverHint: String?
+    /// `rendition:layout`: `pre-paginated` for fixed-layout books (comics, picture books), else
+    /// reflowable.
+    public var renditionLayout: String?
 
     public init(version: String? = nil,
                 title: String? = nil,
