@@ -24,7 +24,8 @@ These exist and are not missing:
   - Notes take the last highlight color.
   - Note editor quotes the passage and opens with the keyboard up.
   - Highlights list filters (color, notes) and sort (page, date).
-- **Appearance:** six theme presets with Customize (font, size, Bold, line spacing, margins, justification), matching system dark mode, and brightness.
+- **More reading:** image viewer (tap a picture to zoom), rotation lock, two-page spreads in landscape, fixed-layout (pre-paginated) books.
+- **Appearance:** six theme presets with Customize: 13 fonts (including the iOS ones Books uses), size, Bold, line spacing, character and word spacing, margins, justification, multiple columns, and custom theme colors; matching system dark mode, and brightness.
 - **Line Guide:** dim-and-outline style or blur.
 - **Search and sharing:** book search, and Share.
 - **Selection menu:** colors, Add Note, Look Up, Translate, Search, Copy, Share.
@@ -41,21 +42,14 @@ These exist and are not missing:
 
 | Priority | Feature | Notes |
 | --- | --- | --- |
-| P2 | Two-page spread in landscape and on iPad | Books shows two columns side by side. |
-| P2 | Image viewer | Tap an image to view it full screen with zoom. |
-| P3 | Rotation lock and orientation handling | A reader setting in Books. |
-| P3 | Fixed-layout EPUB support | Comics and picture books (pre-paginated). Only reflowable books are supported. |
+| P3 | Fixed-layout spreads | Two fixed-layout pages side by side in landscape (`page-spread-left/right` are parsed but unused). |
 
 ## Text and layout settings (Customize)
 
-We have: font family (original, Andada, Lato, Lora, Raleway), 8 text sizes, Bold, line spacing, margins, justification, and page-turn style.
+All of Books' Customize options are in.
 
 | Priority | Feature | Notes |
 | --- | --- | --- |
-| P2 | Character and word spacing | Accessibility options in Books. |
-| P2 | Allow multiple columns | Books toggles columns in landscape and on iPad. |
-| P2 | More fonts | Books ships Athelas, Charter, Georgia, Iowan, New York, Palatino, San Francisco and others. The system fonts could be offered. |
-| P3 | Custom theme colors | Books lets you edit a theme's background and text colors. |
 
 ## Audio and accessibility
 

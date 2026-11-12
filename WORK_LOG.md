@@ -38,6 +38,13 @@ Handoff notes for continuing this work in Claude Code. They cover everything don
 | `8075832` | Customize → Text: line spacing, margins, Justify Text. Highlights no longer pad 2px past their text. |
 | `bd1e649` | Footnotes in a popover; links inside the book jump with Back; web links open outside. Footnote asides are actually hidden now (see below). |
 | `d76997a` | Add Note uses the last highlight color (yellow at first) instead of the red underline. |
+| `88940e4` | Bug fixes: exact search result pages, scrolling-mode page counts, Share with the title, scrolling chapters resume after relayout. |
+| `dff27ce` | Image viewer (tap a picture: pinch/double-tap zoom). Scrolling-mode jumps into earlier chapters open at their start. |
+| `5f8712a` | Rotation lock (needs the host app delegate; see below). |
+| `668a024` | Two-page spreads in landscape; Allow Multiple Columns; settings sheet scrolls on short screens. |
+| `5ade87e` | Fixed-layout (pre-paginated) books: one designed page, scaled to fit. |
+| `ebcdd90` | iOS fonts Books offers (Athelas … Seravek); character and word spacing. |
+| (this commit) | Custom theme colors in Customize. |
 
 In total, against `main`: 74 files changed, about 8.4k insertions. The last eight commits account for 38 files and about 2.2k of them.
 
@@ -60,6 +67,12 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
 - **Back:** `DCReaderViewModel.backPosition` is recorded by `rememberPositionBeforeJump()` before every jump, using saved coords when known so it survives a relayout. There's one level of back, with no forward.
 - **Scrubber:** `DCReaderViewModel.scrubTarget(fraction:counts:chapterCount:)` maps 0…1 to a chapter and page. Jumps go through `DCPagedReaderNavigating.show(spineIndex:page:)`, or the new `DCChapterJump.page` in scrolling mode.
 - **Text layout:** `DCTextLayout` (line spacing, margins, justified) is stored under the `lineSpacing`, `pageMargins` and `justifyText` keys. CSS is injected as `<style id="dc-layout">`, and margins are native insets. `textLayout.id` is part of `pagedConfigId`, `readerConfigId` and the paginator's style id, so a change lays the book out and recounts.
+- **Image viewer:** `imageAction` in `EpubUtil.js` posts `{kind: 'image'}` for a tapped `<img>`/SVG `<image>` that isn't in a link; `DCImageViewerController` shows it.
+- **Rotation lock:** iOS asks the app delegate, so the host returns `DCReaderOrientationLock.supportedOrientations` from `application(_:supportedInterfaceOrientationsFor:)`. The example app's `AppDelegate.swift` does (it's listed in the Xcode project by hand). The reader unlocks when it closes.
+- **Spreads:** `columnsPerPage()` in `EpubUtil.js` is 2 on wide landscape pages when `window.dcAllowSpreads`; 2n columns fill n pages, so pages are still `innerWidth` apart and nothing else changes. Line Guide reads column by column.
+- **Fixed layout:** `DCEpubBook.isFixedLayout(spineIndex:)` (package `rendition:layout`, overridable per itemref). `DCChapterHTMLBuilder` loads those pages without the reader stylesheet, with `window.dcFixedLayout` set to the viewport size; `applyFixedLayout` scales and centers them, and the pagination functions return 1.
+- **Fonts:** system fonts are CSS classes on `<html>` like the bundled ones (`DCFontFamily.systemFontStack` and `Style.css` must agree; a test checks).
+- **Theme colors:** `DCThemeColorStore` (UserDefaults `DCThemeColors`, keyed `theme-light|dark`). `DCReaderAppearance` now carries the resolved colors; use `hasDarkBackground` rather than `isDark` for contrast decisions.
 - **Last highlight color:** `DCHighlightStyle.lastUsed` (UserDefaults key `DCLastHighlightStyle`).
 - **Search result pages** are exact: after each search, `DCBookPaginator.locateSearch` lays out each matching chapter off screen and runs `highlightSearchOccurrence` for every match, the same code the reader jumps with. The sheet shows the estimate until then.
 - **Scrolling mode:**
@@ -89,7 +102,7 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
 
 ## Testing
 
-- Uses Swift Testing (97 tests). WebKit-backed suites are nested under `WebKitBackedTests` (in `DCSearchHighlightJSTests.swift`), which runs serially.
+- Uses Swift Testing (110 tests). WebKit-backed suites are nested under `WebKitBackedTests` (in `DCSearchHighlightJSTests.swift`), which runs serially.
 - Run via `xcodebuild`, because Xcode's in-memory file list can be stale for new files:
 
   ```sh
@@ -112,7 +125,7 @@ In total, against `main`: 74 files changed, about 8.4k insertions. The last eigh
   xcrun simctl launch <sim id> com.example.Example
   ```
 
-- Test book: "Fundamental Accessibility Tests: Basic Functionality" (EPUB 3). It has internal links (the supplement's "return to the search feature test") but no footnotes. To see a footnote, add a temporary `noteref` and `aside` to the app's copy of `supplement.xhtml`, then restore it.
+- Test books: "Fundamental Accessibility Tests: Basic Functionality" (EPUB 3), and "Fixed Layout Test", a two-page pre-paginated book built for testing (imported into the simulator from Files → Downloads). It has internal links (the supplement's "return to the search feature test") but no footnotes. To see a footnote, add a temporary `noteref` and `aside` to the app's copy of `supplement.xhtml`, then restore it.
 
 ## Conventions
 

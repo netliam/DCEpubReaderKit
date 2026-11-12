@@ -39,7 +39,7 @@ final class DCNotesViewModel: ObservableObject {
     }
 
     var isDark: Bool {
-        appearance.isDark
+        appearance.hasDarkBackground
     }
 
     /// The highlighted passage, shown above the editor.

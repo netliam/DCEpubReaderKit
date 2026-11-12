@@ -145,7 +145,7 @@ enum DCChapterHTMLBuilder {
     /// (transparent) web view, so the page curl and the area around the text match.
     static func themeCSS(for appearance: DCReaderAppearance) -> String {
         // Highlight colors are light, so their text stays dark in dark themes.
-        let highlightText = appearance.isDark
+        let highlightText = appearance.hasDarkBackground
             ? "html .highlight-yellow, html .highlight-green, html .highlight-blue, html .highlight-pink, html .highlight-purple, html .highlight_search { color: #000 !important; }"
             : ""
         return """

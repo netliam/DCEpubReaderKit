@@ -19,6 +19,7 @@ final class DCReaderSettingsViewBuilder {
                lineFocusStyle: Binding<String>,
                textLayout: Binding<DCTextLayout>,
                rotationLock: Binding<Bool>,
+               themeColors: Binding<[String: DCThemeColors]>,
                systemIsDark: Bool,
                userPreferences: DCUserPreferencesProtocol) -> DCReaderSettingsView {
         let viewModel = DCReaderSettingsViewModel(fontSize: fontSize,
@@ -31,6 +32,7 @@ final class DCReaderSettingsViewBuilder {
                                                   lineFocusStyle: lineFocusStyle,
                                                   textLayout: textLayout,
                                                   rotationLock: rotationLock,
+                                                  themeColors: themeColors,
                                                   systemIsDark: systemIsDark,
                                                   userPreferences: userPreferences)
         return DCReaderSettingsView(viewModel: viewModel)

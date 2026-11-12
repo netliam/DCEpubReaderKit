@@ -246,6 +246,25 @@ struct DCReaderCustomizeView: View {
                               set: viewModel.setWordSpacing)
             }
 
+            Section {
+                ColorPicker("Background", selection: Binding(
+                    get: { viewModel.currentAppearance.backgroundColor },
+                    set: { viewModel.setThemeColors(background: UIColor($0)) }
+                ), supportsOpacity: false)
+                ColorPicker("Text", selection: Binding(
+                    get: { viewModel.currentAppearance.textColor },
+                    set: { viewModel.setThemeColors(text: UIColor($0)) }
+                ), supportsOpacity: false)
+                Button("Reset to Theme Colors", role: .destructive) {
+                    viewModel.resetThemeColors()
+                }
+                .disabled(!viewModel.currentAppearance.hasCustomColors)
+            } header: {
+                Text("Theme Colors")
+            } footer: {
+                Text("Changes the \(viewModel.currentPaletteName) theme.")
+            }
+
             Section("Layout") {
                 Toggle("Scrolling", isOn: Binding(
                     get: { viewModel.isScrolling },
@@ -364,6 +383,7 @@ enum DCScreenBrightness {
         lineFocusStyle: .constant(DCLineFocusStyle.guide.rawValue),
         textLayout: .constant(DCTextLayout()),
         rotationLock: .constant(false),
+        themeColors: .constant([:]),
         systemIsDark: true,
         userPreferences: DCUserPreferencesMock()
     )

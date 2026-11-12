@@ -16,6 +16,8 @@ final class DCReaderViewModel: ObservableObject {
     @Published var textFont: String
     /// Line spacing, margins and justification.
     @Published var textLayout: DCTextLayout
+    /// Custom theme colors, by theme and palette (see `DCThemeColorStore`).
+    @Published var themeColors: [String: DCThemeColors] = DCThemeColorStore.all
     /// Rotation lock (see `DCReaderOrientationLock`); applied when it changes and while the reader is open.
     @Published var rotationLock: Bool {
         didSet { if rotationLock != oldValue { DCReaderOrientationLock.setLocked(rotationLock) } }
@@ -440,10 +442,13 @@ final class DCReaderViewModel: ObservableObject {
         return initialCoords(for: spineIndex)
     }
 
-    /// The theme's light or dark palette, depending on the system appearance and the setting.
+    /// The theme's light or dark palette, depending on the system appearance and the setting, with
+    /// any custom colors set in Customize.
     var appearance: DCReaderAppearance {
-        DCReaderAppearance(theme: DCReaderTheme(rawValue: theme) ?? .original,
-                           isDark: followsSystemAppearance && systemIsDark)
+        let theme = DCReaderTheme(rawValue: theme) ?? .original
+        let isDark = followsSystemAppearance && systemIsDark
+        return DCReaderAppearance(theme: theme, isDark: isDark,
+                                  custom: themeColors[DCThemeColorStore.key(theme, isDark: isDark)])
     }
 
     var backgroundColor: Color {

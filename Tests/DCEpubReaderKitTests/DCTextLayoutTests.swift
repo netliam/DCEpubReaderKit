@@ -7,6 +7,7 @@
 
 import Foundation
 import Testing
+import SwiftUI
 import DCEpubCore
 import DCEpubParser
 @testable import DCEpubRendering
@@ -125,5 +126,64 @@ struct DCFontsAndSpacingTests {
         #expect(layout.css.contains("letter-spacing: 0.06em !important"))
         #expect(layout.css.contains("word-spacing: 0.1em !important"))
         #expect(layout.id != id)
+    }
+}
+
+/// Custom theme colors (Customize → Theme Colors).
+@MainActor
+@Suite("Custom theme colors", .serialized)
+struct DCThemeColorTests {
+
+    private func withTemporaryStore(_ body: () throws -> Void) throws {
+        let defaults = try #require(UserDefaults(suiteName: "DCThemeColorTests-\(UUID().uuidString)"))
+        let previous = DCThemeColorStore.store
+        DCThemeColorStore.store = defaults
+        defer { DCThemeColorStore.store = previous }
+        try body()
+    }
+
+    @Test func appearanceUsesCustomColorsForItsPaletteOnly() throws {
+        try withTemporaryStore {
+            #expect(DCThemeColorStore.all.isEmpty)
+            DCThemeColorStore.all = [DCThemeColorStore.key(.paper, isDark: false): DCThemeColors(background: 0x102030, text: 0xF0E0D0)]
+
+            let custom = DCReaderAppearance.stored(theme: .paper, isDark: false)
+            #expect(custom.cssTextColor == "#F0E0D0")
+            #expect(DCReaderAppearance.hex(custom.uiBackgroundColor) == 0x102030)
+            #expect(custom.hasCustomColors)
+            #expect(custom.hasDarkBackground, "a dark custom background in a light palette")
+            #expect(custom != DCReaderAppearance(theme: .paper, isDark: false))
+
+            // Paper's dark palette and other themes are unchanged.
+            #expect(!DCReaderAppearance.stored(theme: .paper, isDark: true).hasCustomColors)
+            #expect(!DCReaderAppearance.stored(theme: .calm, isDark: false).hasCustomColors)
+            #expect(!DCReaderAppearance(theme: .original, isDark: false).hasDarkBackground)
+        }
+    }
+
+    @Test func customizeSetsAndResetsTheCurrentPalette() throws {
+        try withTemporaryStore {
+            var colors: [String: DCThemeColors] = [:]
+            var theme = DCReaderTheme.calm.rawValue
+            let settings = DCReaderSettingsViewModel(
+                fontSize: .constant(3), textFont: .constant("original"),
+                theme: Binding(get: { theme }, set: { theme = $0 }),
+                followsSystemAppearance: .constant(true), orientation: .constant("horizontal"),
+                pageTransition: .constant("curl"), lineFocus: .constant(false), lineFocusStyle: .constant("guide"),
+                textLayout: .constant(DCTextLayout()), rotationLock: .constant(false),
+                themeColors: Binding(get: { colors }, set: { colors = $0 }),
+                systemIsDark: false, userPreferences: DCUserPreferencesMock())
+
+            settings.setThemeColors(background: UIColor(red: 1, green: 0, blue: 0, alpha: 1))
+            let key = DCThemeColorStore.key(.calm, isDark: false)
+            #expect(colors[key]?.background == 0xFF0000)
+            #expect(colors[key]?.text == DCReaderTheme.calm.palette(isDark: false).text, "text keeps the theme's")
+            #expect(DCThemeColorStore.all[key] == colors[key], "saved")
+            #expect(settings.currentAppearance.hasCustomColors)
+
+            settings.resetThemeColors()
+            #expect(colors[key] == nil)
+            #expect(DCThemeColorStore.all.isEmpty)
+        }
     }
 }

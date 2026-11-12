@@ -170,25 +170,87 @@ enum DCReaderTheme: String, CaseIterable {
     }
 }
 
-/// The resolved look of the reader: a theme plus whether its dark palette is in use.
+/// A theme palette the reader changed in Customize (Books' custom theme colors), as 0xRRGGBB.
+struct DCThemeColors: Codable, Equatable, Sendable {
+    var background: UInt32
+    var text: UInt32
+}
+
+/// Custom colors for each theme's light and dark palette, stored in user defaults.
+enum DCThemeColorStore {
+    nonisolated(unsafe) static var store: UserDefaults = .standard
+    private static let key = "DCThemeColors"
+
+    static func key(_ theme: DCReaderTheme, isDark: Bool) -> String {
+        "\(theme.rawValue)-\(isDark ? "dark" : "light")"
+    }
+
+    static var all: [String: DCThemeColors] {
+        get {
+            guard let data = store.data(forKey: key) else { return [:] }
+            return (try? JSONDecoder().decode([String: DCThemeColors].self, from: data)) ?? [:]
+        }
+        set {
+            store.set(try? JSONEncoder().encode(newValue), forKey: key)
+        }
+    }
+
+    static func colors(for theme: DCReaderTheme, isDark: Bool) -> DCThemeColors? {
+        all[key(theme, isDark: isDark)]
+    }
+}
+
+/// The resolved look of the reader: a theme, whether its dark palette is in use, and its colors
+/// (the theme's own, or custom ones from Customize).
 struct DCReaderAppearance: Equatable {
     let theme: DCReaderTheme
     let isDark: Bool
+    /// 0xRRGGBB.
+    let background: UInt32
+    let text: UInt32
 
-    init(theme: DCReaderTheme, isDark: Bool) {
+    init(theme: DCReaderTheme, isDark: Bool, custom: DCThemeColors? = nil) {
         self.theme = theme
         self.isDark = isDark
+        let palette = theme.palette(isDark: isDark)
+        self.background = custom?.background ?? palette.background
+        self.text = custom?.text ?? palette.text
+    }
+
+    /// With the custom colors saved for this theme and palette, if any.
+    static func stored(theme: DCReaderTheme, isDark: Bool) -> DCReaderAppearance {
+        DCReaderAppearance(theme: theme, isDark: isDark,
+                           custom: DCThemeColorStore.colors(for: theme, isDark: isDark))
+    }
+
+    /// Whether the background is dark (by its luminance), whichever palette it comes from.
+    var hasDarkBackground: Bool {
+        let r = Double((background >> 16) & 0xFF), g = Double((background >> 8) & 0xFF), b = Double(background & 0xFF)
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5
+    }
+
+    var hasCustomColors: Bool {
+        let palette = theme.palette(isDark: isDark)
+        return background != palette.background || text != palette.text
     }
 
     var backgroundColor: Color { Color(uiColor: uiBackgroundColor) }
     var textColor: Color { Color(uiColor: uiTextColor) }
-    var uiBackgroundColor: UIColor { Self.color(theme.palette(isDark: isDark).background) }
-    var uiTextColor: UIColor { Self.color(theme.palette(isDark: isDark).text) }
+    var uiBackgroundColor: UIColor { Self.color(background) }
+    var uiTextColor: UIColor { Self.color(text) }
 
     /// Identifies everything that affects layout or colors, for rebuilding pages when it changes.
-    var id: String { "\(theme.rawValue)-\(isDark ? "dark" : "light")" }
+    var id: String { "\(theme.rawValue)-\(isDark ? "dark" : "light")-\(Self.cssHex(background))\(Self.cssHex(text))" }
 
-    var cssTextColor: String { Self.cssHex(theme.palette(isDark: isDark).text) }
+    var cssTextColor: String { Self.cssHex(text) }
+
+    /// 0xRRGGBB for a color (sRGB, alpha ignored).
+    static func hex(_ color: UIColor) -> UInt32 {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        func channel(_ value: CGFloat) -> UInt32 { UInt32((min(max(value, 0), 1) * 255).rounded()) }
+        return channel(red) << 16 | channel(green) << 8 | channel(blue)
+    }
 
     private static func color(_ hex: UInt32) -> UIColor {
         UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255,

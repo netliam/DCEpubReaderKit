@@ -124,6 +124,6 @@ extension UserDefaults: DCUserPreferencesProtocol {
 extension DCUserPreferencesProtocol {
     /// The appearance to render with, given whether the system is currently in dark mode.
     func appearance(systemIsDark: Bool) -> DCReaderAppearance {
-        DCReaderAppearance(theme: getTheme(), isDark: getFollowsSystemAppearance() && systemIsDark)
+        DCReaderAppearance.stored(theme: getTheme(), isDark: getFollowsSystemAppearance() && systemIsDark)
     }
 }
